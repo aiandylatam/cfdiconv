@@ -5,17 +5,20 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>CFDIconv — Convierte tu ZIP del SAT en algo que sí entiendes</title>
 <meta name="description" content="Analiza, visualiza y exporta tus CFDIs (XML del SAT) en PDF, Excel y CSV. 100% en tu navegador." />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'; worker-src 'self' blob:;">
+<meta http-equiv="X-Content-Type-Options" content="nosniff" />
+<meta name="referrer" content="no-referrer" />
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,400;1,9..144,500&family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js" integrity="sha384-fCAW/rDWORTbQXSiB7mOg0QtQ5c+r0f544y6XoKjuVva0nMBlCpNUjiFeG5iMdS3" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" integrity="sha384-+mbV2IY1Zk/X1p/nWllGySJSUN8uMs+gUAN10Or95UBH0fpj6GfKgPmgC5EXieXG" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" integrity="sha384-e6nUZLBkQ86NJ6TVVKAeSaK8jWa3NhkYWZFomE39AvDbQWeie9PlQqM3pmYW5d1g" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" integrity="sha384-3zSEDfvllQohrq0PHL1fOXJuC/jSOO34H46t6UQfobFOmxE5BpjjaIJY5F2/bMnU" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 
 <style>
   /* ==================== RESET & BASE ==================== */
@@ -1050,6 +1053,12 @@ function parseCFDI(xmlText, fileName) {
     };
   }
 
+  // Whitelist sanitization to prevent XSS via XML attributes
+  const rawMoneda = attr(c, 'Moneda') || 'MXN';
+  const safeMoneda = /^[A-Z0-9]{1,4}$/i.test(rawMoneda) ? rawMoneda.toUpperCase() : 'MXN';
+  const rawTipo = attr(c, 'TipoDeComprobante');
+  const safeTipo = /^[A-Z]$/.test(rawTipo) ? rawTipo : '?';
+
   return {
     fileName: fileName || '',
     version: attr(c, 'Version') || attr(c, 'version'),
@@ -1058,12 +1067,12 @@ function parseCFDI(xmlText, fileName) {
     fecha: attr(c, 'Fecha'),
     formaPago: attr(c, 'FormaPago'),
     metodoPago: attr(c, 'MetodoPago'),
-    moneda: attr(c, 'Moneda') || 'MXN',
+    moneda: safeMoneda,
     tipoCambio: num(attr(c, 'TipoCambio')) || 1,
     subtotal: num(attr(c, 'SubTotal')),
     descuento: num(attr(c, 'Descuento')),
     total: num(attr(c, 'Total')),
-    tipo: attr(c, 'TipoDeComprobante'),
+    tipo: safeTipo,
     lugarExpedicion: attr(c, 'LugarExpedicion'),
     exportacion: attr(c, 'Exportacion'),
     emisorRfc: attr(emisor, 'Rfc'),
@@ -2111,8 +2120,9 @@ function exportExcel() {
     'Lugar Expedición': c.lugarExpedicion,
     'Fecha Timbrado': c.fechaTimbrado, 'PAC': c.rfcProvCertif, 'No. Cert. SAT': c.noCertificadoSAT
   }));
-  const ws1 = XLSX.utils.json_to_sheet(cfdiRows);
-  ws1['!cols'] = autoCols(cfdiRows);
+  const safeCfdiRows = cfdiRows.map(sanitizeXlsxRow);
+  const ws1 = XLSX.utils.json_to_sheet(safeCfdiRows);
+  ws1['!cols'] = autoCols(safeCfdiRows);
   XLSX.utils.book_append_sheet(wb, ws1, 'CFDIs');
 
   const conceptosRows = [];
@@ -2127,8 +2137,9 @@ function exportExcel() {
       });
     });
   });
-  const ws2 = XLSX.utils.json_to_sheet(conceptosRows);
-  ws2['!cols'] = autoCols(conceptosRows);
+  const safeConceptosRows = conceptosRows.map(sanitizeXlsxRow);
+  const ws2 = XLSX.utils.json_to_sheet(safeConceptosRows);
+  ws2['!cols'] = autoCols(safeConceptosRows);
   XLSX.utils.book_append_sheet(wb, ws2, 'Conceptos');
 
   const sums = rows.reduce((s, c) => {
@@ -2160,6 +2171,17 @@ function exportExcel() {
 }
 $('#btnExcel').addEventListener('click', exportExcel);
 
+// Sanitize Excel cells against formula injection (CWE-1236)
+function sanitizeXlsxRow(row) {
+  const out = {};
+  Object.keys(row).forEach(k => {
+    const v = row[k];
+    if (typeof v === 'string' && /^[=+\-@\t\r]/.test(v)) out[k] = "'" + v;
+    else out[k] = v;
+  });
+  return out;
+}
+
 function autoCols(rows) {
   if (!rows.length) return [];
   const keys = Object.keys(rows[0]);
@@ -2186,7 +2208,10 @@ function exportCsv() {
 }
 function csvEscape(v) {
   if (v === undefined || v === null) return '';
-  const s = String(v);
+  let s = String(v);
+  // Neutralize formula injection: cells starting with =, +, -, @, tab, CR
+  // Excel/Sheets interpret these as formulas → potential RCE
+  if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
   if (/[",\n]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
   return s;
 }
