@@ -24,4 +24,4 @@ Abre `index.html` en cualquier navegador moderno.
 
 ---
 
-Construido por [@aiandyofi](https://youtube.com/@aiandyofi) con IA. MIT.
+Construido por [@aiandylatam](https://youtube.com/@aiandylatam) con IA. MIT.
