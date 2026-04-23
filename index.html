@@ -1,0 +1,2306 @@
+<!DOCTYPE html>
+<html lang="es-MX">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CFDIconv — Convierte tu ZIP del SAT en algo que sí entiendes</title>
+<meta name="description" content="Analiza, visualiza y exporta tus CFDIs (XML del SAT) en PDF, Excel y CSV. 100% en tu navegador." />
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,400;1,9..144,500&family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+<style>
+  /* ==================== RESET & BASE ==================== */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #FAFAF7;
+    --surface: #FFFFFF;
+    --ink: #0F1419;
+    --muted: #5B6472;
+    --border: #E5E3DC;
+    --primary: #00BFFF;
+    --primary-dark: #0095CC;
+    --accent: #E85D2F;
+    --success: #0B8B4F;
+    --warning: #D4A017;
+    --warning-bg: #FFF8E1;
+    --content-max: 1280px;
+  }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: 'Inter Tight', sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 15px;
+    line-height: 1.55;
+    font-weight: 400;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  h1, h2, h3, h4 { font-family: 'Fraunces', serif; font-weight: 600; line-height: 1.15; letter-spacing: -0.01em; color: var(--ink); }
+  h1 { font-size: clamp(2rem, 5vw, 3.25rem); font-weight: 600; letter-spacing: -0.02em; }
+  h2 { font-size: 1.5rem; }
+  h3 { font-size: 1.15rem; }
+  p { color: var(--muted); }
+  a { color: var(--primary); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  button { font-family: inherit; cursor: pointer; border: none; background: none; color: inherit; }
+  .mono { font-family: 'JetBrains Mono', monospace; font-size: 0.85em; }
+  .num { font-variant-numeric: tabular-nums; }
+  .right { text-align: right; }
+
+  /* ==================== TOP STRIP ==================== */
+  .topstrip {
+    position: sticky; top: 0; z-index: 100;
+    background: var(--ink); color: #FFFFFF;
+    padding: 8px 24px;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 16px;
+    font-size: 13px;
+    border-bottom: 1px solid #1f262e;
+  }
+  .topstrip-brand { font-family: 'Fraunces', serif; font-style: italic; font-weight: 500; font-size: 16px; letter-spacing: -0.01em; color: #fff; }
+  .topstrip-msg { color: #9aa4b1; flex: 1; text-align: center; font-size: 12.5px; }
+  .topstrip-pills { display: flex; gap: 8px; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 4px 10px; border-radius: 999px;
+    background: var(--primary); color: #fff !important;
+    font-weight: 500; font-size: 12px;
+    text-decoration: none !important; transition: background 0.15s;
+  }
+  .pill:hover { background: var(--primary-dark); }
+  @media (max-width: 768px) {
+    .topstrip { padding: 8px 12px; gap: 8px; flex-wrap: wrap; }
+    .topstrip-msg { display: none; }
+  }
+
+  /* ==================== LAYOUT ==================== */
+  .container { max-width: var(--content-max); margin: 0 auto; padding: 0 24px; }
+  @media (max-width: 768px) { .container { padding: 0 16px; } }
+
+  /* ==================== HERO ==================== */
+  .hero { padding: 80px 0 40px; text-align: center; }
+  .hero h1 { max-width: 820px; margin: 0 auto 20px; }
+  .hero h1 em { font-style: italic; font-weight: 500; color: var(--primary); }
+  .hero .lead { font-size: 1.15rem; color: var(--muted); max-width: 640px; margin: 0 auto 48px; }
+  .hero-features { display: flex; justify-content: center; gap: 32px; margin-top: 32px; flex-wrap: wrap; }
+  .feature { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 14px; }
+  .feature-icon { font-size: 18px; }
+
+  /* ==================== UPLOAD ZONE ==================== */
+  .upload-section { padding: 24px 0 40px; }
+  .dropzone {
+    border: 2px dashed var(--border);
+    background: var(--surface);
+    border-radius: 16px;
+    padding: 48px 24px;
+    text-align: center;
+    transition: all 0.2s ease;
+    cursor: pointer;
+    position: relative;
+  }
+  .dropzone:hover { border-color: var(--primary); background: #fff; }
+  .dropzone.dragover {
+    border-color: var(--primary);
+    background: #F0FBFF;
+    transform: scale(1.005);
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(0,191,255,0.18);} 50% { box-shadow: 0 0 0 18px rgba(0,191,255,0);} }
+  .dropzone-icon { font-size: 42px; opacity: 0.5; margin-bottom: 12px; }
+  .dropzone-title { font-family: 'Fraunces', serif; font-size: 1.4rem; font-weight: 500; margin-bottom: 6px; color: var(--ink); }
+  .dropzone-sub { color: var(--muted); font-size: 14px; }
+  .dropzone-btn {
+    display: inline-block; margin-top: 18px;
+    background: var(--ink); color: #fff;
+    padding: 10px 22px; border-radius: 8px;
+    font-weight: 500; font-size: 14px;
+    border-bottom: 2px solid #000;
+    transition: transform 0.08s;
+  }
+  .dropzone-btn:hover { transform: translateY(-1px); }
+  .dropzone-btn:active { transform: translateY(1px); border-bottom-width: 0; margin-top: 20px; }
+  .file-input { display: none; }
+
+  /* ==================== PROGRESS ==================== */
+  .progress-wrap { margin-top: 16px; }
+  .progress-bar { height: 6px; background: var(--border); border-radius: 999px; overflow: hidden; }
+  .progress-bar-fill { height: 100%; background: var(--primary); transition: width 0.18s; }
+  .progress-text { margin-top: 8px; color: var(--muted); font-size: 13px; text-align: center; }
+
+  .file-statuses { margin-top: 12px; max-height: 160px; overflow-y: auto; font-size: 12px; }
+  .file-status { display: flex; gap: 8px; padding: 3px 0; align-items: center; color: var(--muted); }
+  .status-ok { color: var(--success); }
+  .status-warn { color: var(--warning); }
+  .status-err { color: var(--accent); }
+
+  /* ==================== SECTION HEADERS ==================== */
+  .section-head {
+    display: flex; align-items: baseline; gap: 16px;
+    border-top: 1px solid var(--border);
+    padding-top: 32px;
+    margin: 56px 0 24px;
+  }
+  .section-num {
+    font-family: 'Fraunces', serif; font-style: italic; font-weight: 500;
+    color: var(--primary); font-size: 14px; letter-spacing: 0.05em;
+  }
+  .section-head h2 { font-size: 1.6rem; }
+
+  /* ==================== RFC CONFIRM ==================== */
+  .rfc-bar {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 18px;
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    margin-bottom: 32px;
+  }
+  .rfc-bar label { font-size: 13px; color: var(--muted); }
+  .rfc-input {
+    font-family: 'JetBrains Mono', monospace; font-size: 14px;
+    padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px;
+    background: #fff; text-transform: uppercase; min-width: 160px;
+  }
+  .rfc-input:focus { outline: none; border-color: var(--primary); }
+  .rfc-bar small { color: var(--muted); font-size: 12px; }
+
+  /* ==================== KPI STRIP ==================== */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 12px;
+  }
+  @media (max-width: 1100px) { .kpi-grid { grid-template-columns: repeat(3, 1fr); } }
+  @media (max-width: 600px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+  .kpi-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 16px;
+    display: flex; flex-direction: column; gap: 6px;
+    min-height: 130px;
+    position: relative;
+    overflow: hidden;
+  }
+  .kpi-label {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--muted); font-weight: 500;
+  }
+  .kpi-value {
+    font-family: 'Fraunces', serif; font-weight: 600;
+    font-size: 1.7rem; line-height: 1.05; color: var(--ink);
+    letter-spacing: -0.02em; font-variant-numeric: tabular-nums;
+  }
+  .kpi-sub { font-size: 12px; color: var(--muted); }
+  .kpi-spark { margin-top: auto; height: 28px; }
+  .kpi-spark svg { width: 100%; height: 100%; display: block; }
+
+  /* ==================== TIP LINE ==================== */
+  .tip-line {
+    text-align: center;
+    margin: 18px 0 0;
+    color: var(--muted); font-size: 13px;
+  }
+  .tip-line a { color: var(--primary); font-weight: 500; }
+
+  /* ==================== CHARTS ==================== */
+  .charts-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+  @media (max-width: 900px) { .charts-grid { grid-template-columns: 1fr; } }
+  .chart-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px;
+  }
+  .chart-card h3 {
+    font-size: 14px; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--muted); font-weight: 500; margin-bottom: 12px;
+    font-family: 'Inter Tight', sans-serif;
+  }
+  .chart-wrap { height: 240px; position: relative; }
+
+  /* ==================== FISCAL PANEL ==================== */
+  .fiscal-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px;
+    margin-bottom: 16px;
+  }
+  .fiscal-panel h3 {
+    font-family: 'Fraunces', serif;
+    font-size: 1.3rem; font-weight: 600;
+    margin-bottom: 16px;
+  }
+  .fiscal-table {
+    width: 100%; border-collapse: collapse;
+    font-variant-numeric: tabular-nums;
+  }
+  .fiscal-table td {
+    padding: 8px 0; border-bottom: 1px dashed var(--border);
+    font-size: 14px;
+  }
+  .fiscal-table td:last-child { text-align: right; font-family: 'JetBrains Mono', monospace; }
+  .fiscal-table tr.total td {
+    border-top: 2px solid var(--ink);
+    border-bottom: none;
+    padding-top: 14px;
+    font-weight: 600;
+    color: var(--accent);
+    font-size: 1.05rem;
+  }
+  .disclaimer { font-size: 12px; color: var(--muted); margin-top: 14px; font-style: italic; }
+
+  /* ==================== DUPLICATES BANNER ==================== */
+  .dup-banner {
+    background: var(--warning-bg);
+    border: 1px solid var(--warning);
+    color: #6F5400;
+    padding: 12px 16px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 16px; font-size: 14px;
+  }
+  .dup-banner button {
+    background: var(--warning); color: #fff;
+    padding: 6px 12px; border-radius: 6px; font-weight: 500; font-size: 13px;
+  }
+
+  /* ==================== EXPORT BAR ==================== */
+  .export-bar {
+    position: sticky; top: 41px; z-index: 50;
+    background: var(--bg);
+    padding: 12px 0; margin: 0 0 16px;
+    display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+    border-bottom: 1px solid var(--border);
+  }
+  .export-bar-label { font-size: 13px; color: var(--muted); margin-right: 4px; }
+  .export-btn {
+    background: var(--surface); color: var(--ink);
+    border: 1px solid var(--border);
+    padding: 8px 14px; border-radius: 8px;
+    font-size: 13px; font-weight: 500;
+    border-bottom: 2px solid var(--border);
+    transition: all 0.1s;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .export-btn:hover { border-color: var(--ink); border-bottom-color: var(--ink); }
+  .export-btn.primary {
+    background: var(--ink); color: #fff;
+    border-color: var(--ink); border-bottom-color: #000;
+  }
+  .export-btn.primary:hover { background: #1c252e; }
+  .export-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .template-select {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 12px; font-size: 13px;
+    font-family: inherit;
+  }
+
+  /* ==================== FILTERS ==================== */
+  .filters {
+    display: flex; flex-wrap: wrap; gap: 8px;
+    align-items: center; margin-bottom: 16px;
+  }
+  .filter-chip {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 13px;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .filter-chip select, .filter-chip input {
+    border: none; background: transparent; font-family: inherit;
+    font-size: 13px; color: var(--ink); padding: 0;
+  }
+  .filter-chip select:focus, .filter-chip input:focus { outline: none; }
+  .filter-chip strong { color: var(--muted); font-weight: 500; }
+  .search-input {
+    flex: 1; min-width: 200px;
+    border: 1px solid var(--border); background: var(--surface);
+    border-radius: 8px; padding: 8px 12px; font-size: 14px;
+    font-family: inherit;
+  }
+  .search-input:focus { outline: none; border-color: var(--primary); }
+
+  /* ==================== TABLE ==================== */
+  .table-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  table.cfdi {
+    width: 100%; border-collapse: collapse;
+    font-size: 13px;
+  }
+  table.cfdi thead th {
+    text-align: left;
+    padding: 10px 12px;
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--muted); font-weight: 500;
+    background: #FAFAF7;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    white-space: nowrap;
+    user-select: none;
+  }
+  table.cfdi thead th.right { text-align: right; }
+  table.cfdi thead th:hover { color: var(--ink); }
+  table.cfdi tbody td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+  }
+  table.cfdi tbody tr { cursor: pointer; transition: background 0.1s; }
+  table.cfdi tbody tr:hover { background: var(--bg); }
+  table.cfdi tbody tr:last-child td { border-bottom: none; }
+  table.cfdi td.num { text-align: right; font-family: 'JetBrains Mono', monospace; font-variant-numeric: tabular-nums; }
+  .badge {
+    display: inline-block; padding: 2px 8px;
+    border-radius: 999px; font-size: 11px; font-weight: 500;
+    background: #EEF2F7; color: var(--ink);
+  }
+  .badge.tipo-I { background: #E3F2FD; color: #1565C0; }
+  .badge.tipo-E { background: #FFEBEE; color: #C62828; }
+  .badge.tipo-P { background: #E8F5E9; color: #2E7D32; }
+  .badge.tipo-N { background: #F3E5F5; color: #6A1B9A; }
+  .badge.tipo-T { background: #FFF3E0; color: #E65100; }
+  .row-actions {
+    display: inline-flex; gap: 6px;
+  }
+  .row-actions button {
+    background: transparent; border: 1px solid var(--border);
+    padding: 4px 8px; border-radius: 6px;
+    font-size: 12px;
+  }
+  .row-actions button:hover { background: var(--bg); border-color: var(--ink); }
+
+  .pagination {
+    padding: 14px 18px;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 8px; flex-wrap: wrap;
+    background: #FAFAF7; border-top: 1px solid var(--border);
+    font-size: 13px; color: var(--muted);
+  }
+  .pagination button {
+    background: #fff; border: 1px solid var(--border);
+    padding: 4px 10px; border-radius: 6px; font-size: 12px;
+  }
+  .pagination button:disabled { opacity: 0.4; cursor: not-allowed; }
+  .pagination button:hover:not(:disabled) { border-color: var(--ink); }
+
+  /* Mobile cards */
+  @media (max-width: 768px) {
+    table.cfdi thead { display: none; }
+    table.cfdi, table.cfdi tbody, table.cfdi tr, table.cfdi td { display: block; width: 100%; }
+    table.cfdi tr { padding: 12px; border-bottom: 1px solid var(--border); }
+    table.cfdi td { padding: 4px 0; border: none; }
+    table.cfdi td::before {
+      content: attr(data-label);
+      font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em;
+      color: var(--muted); display: inline-block; min-width: 90px;
+    }
+    table.cfdi td.num { text-align: left; }
+  }
+
+  /* ==================== SLIDE-OVER ==================== */
+  .slideover-backdrop {
+    position: fixed; inset: 0; background: rgba(15,20,25,0.5);
+    backdrop-filter: blur(2px);
+    z-index: 200; opacity: 0; pointer-events: none;
+    transition: opacity 0.18s;
+  }
+  .slideover-backdrop.show { opacity: 1; pointer-events: auto; }
+  .slideover {
+    position: fixed; top: 0; right: 0; bottom: 0;
+    width: min(640px, 96vw);
+    background: var(--surface);
+    z-index: 201;
+    box-shadow: -10px 0 40px rgba(0,0,0,0.12);
+    transform: translateX(100%);
+    transition: transform 0.22s ease-out;
+    overflow-y: auto;
+  }
+  .slideover.show { transform: translateX(0); }
+  .slideover-head {
+    padding: 18px 24px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    position: sticky; top: 0; background: var(--surface); z-index: 1;
+  }
+  .slideover-head h3 { font-family: 'Fraunces', serif; font-size: 1.2rem; }
+  .close-btn {
+    width: 32px; height: 32px; border-radius: 6px;
+    background: var(--bg); display: inline-flex; align-items: center; justify-content: center;
+    font-size: 18px; color: var(--muted);
+  }
+  .close-btn:hover { background: var(--border); color: var(--ink); }
+  .slideover-body { padding: 20px 24px 32px; }
+  .so-section { margin-bottom: 24px; }
+  .so-section h4 {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--muted); font-weight: 500; margin-bottom: 8px;
+    font-family: 'Inter Tight', sans-serif;
+  }
+  .so-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; font-size: 13px;
+  }
+  .so-grid .k { color: var(--muted); }
+  .so-grid .v { font-family: 'JetBrains Mono', monospace; font-size: 12.5px; word-break: break-all; }
+  .so-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .so-table th, .so-table td { padding: 6px 8px; text-align: left; border-bottom: 1px solid var(--border); }
+  .so-table th { font-weight: 500; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .so-table td.num { text-align: right; font-family: 'JetBrains Mono', monospace; }
+
+  /* ==================== MODAL ==================== */
+  .modal-backdrop {
+    position: fixed; inset: 0; background: rgba(15,20,25,0.6);
+    backdrop-filter: blur(4px);
+    z-index: 300; display: none;
+    align-items: center; justify-content: center;
+    padding: 20px;
+  }
+  .modal-backdrop.show { display: flex; }
+  .modal {
+    background: var(--surface);
+    border-radius: 12px;
+    width: 100%; max-width: 480px;
+    padding: 36px 32px 28px;
+    text-align: center;
+    box-shadow: 0 30px 80px rgba(0,0,0,0.18);
+    animation: modalIn 0.22s ease-out;
+  }
+  @keyframes modalIn { from { transform: translateY(12px) scale(0.98); opacity: 0; } to { transform: translateY(0) scale(1); opacity: 1; } }
+  .modal h3 {
+    font-family: 'Fraunces', serif; font-size: 1.7rem;
+    font-weight: 600; margin-bottom: 12px;
+  }
+  .modal p { color: var(--muted); margin-bottom: 22px; font-size: 14px; line-height: 1.6; }
+  .modal-cta {
+    display: block; width: 100%;
+    padding: 12px 18px; border-radius: 10px;
+    font-weight: 500; font-size: 14px; margin-bottom: 10px;
+    text-align: center; text-decoration: none !important;
+  }
+  .modal-cta.primary { background: var(--primary); color: #fff !important; border-bottom: 2px solid var(--primary-dark); }
+  .modal-cta.primary:hover { background: var(--primary-dark); }
+  .modal-cta.outline { border: 1px solid var(--ink); color: var(--ink) !important; background: #fff; }
+  .modal-cta.outline:hover { background: var(--ink); color: #fff !important; }
+  .modal-dismiss { font-size: 12px; color: var(--muted); margin-top: 8px; cursor: pointer; }
+  .modal-dismiss:hover { color: var(--ink); text-decoration: underline; }
+
+  /* dup modal table */
+  .dup-list { max-height: 320px; overflow-y: auto; text-align: left; }
+  .dup-list .item { padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 12.5px; }
+  .dup-list .item:last-child { border-bottom: none; }
+
+  /* ==================== TOAST ==================== */
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: var(--ink); color: #fff;
+    padding: 12px 18px; border-radius: 10px;
+    font-size: 13.5px;
+    z-index: 400;
+    opacity: 0; pointer-events: none;
+    transition: all 0.25s;
+    max-width: 90vw;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
+  .toast a { color: var(--primary); margin-left: 6px; font-weight: 500; }
+
+  /* ==================== FOOTER ==================== */
+  .footer {
+    border-top: 1px solid var(--border);
+    margin-top: 64px; padding: 32px 0 56px;
+  }
+  .footer-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    flex-wrap: wrap; font-size: 13px; color: var(--muted);
+  }
+  .footer-row a { color: var(--primary); font-weight: 500; margin-left: 16px; }
+  .footer-sub {
+    font-size: 12px; color: var(--muted); margin-top: 12px; opacity: 0.85;
+  }
+
+  /* ==================== UTIL ==================== */
+  .hidden { display: none !important; }
+  .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+</style>
+</head>
+<body>
+
+<!-- ========== TOP STRIP ========== -->
+<div class="topstrip">
+  <span class="topstrip-brand">aiAndy</span>
+  <span class="topstrip-msg">Herramienta gratuita · Tus datos nunca salen de tu navegador</span>
+  <span class="topstrip-pills">
+    <a class="pill" target="_blank" rel="noopener" href="https://youtube.com/@aiandyofi">▶ YouTube</a>
+    <a class="pill" target="_blank" rel="noopener" href="https://tiktok.com/@aiandyofi">🎵 TikTok</a>
+  </span>
+</div>
+
+<!-- ========== HERO + UPLOAD ========== -->
+<main class="container">
+  <section id="hero" class="hero">
+    <h1>Convierte tu ZIP del SAT en algo que <em>sí entiendes</em>.</h1>
+    <p class="lead">Sube tus CFDIs en XML. Te damos el PDF, el Excel, y las gráficas. Todo en tu navegador. Gratis.</p>
+  </section>
+
+  <section class="upload-section">
+    <div id="dropzone" class="dropzone" tabindex="0" role="button" aria-label="Cargar XMLs">
+      <div class="dropzone-icon">📂</div>
+      <div class="dropzone-title">Arrastra tus XMLs aquí o el ZIP que te dio el SAT.</div>
+      <div class="dropzone-sub">Aceptamos archivos .xml individuales o un .zip con muchos. CFDI 3.3 y 4.0.</div>
+      <span class="dropzone-btn">Seleccionar archivos</span>
+      <input id="fileInput" class="file-input" type="file" multiple accept=".xml,.zip,application/xml,application/zip,text/xml" />
+    </div>
+    <div id="progressWrap" class="progress-wrap hidden">
+      <div class="progress-bar"><div id="progressFill" class="progress-bar-fill" style="width:0"></div></div>
+      <div id="progressText" class="progress-text">Procesando tus CFDIs en tu navegador…</div>
+      <div id="fileStatuses" class="file-statuses"></div>
+    </div>
+    <div id="heroFeatures" class="hero-features">
+      <div class="feature"><span class="feature-icon">🔒</span> 100% en tu navegador</div>
+      <div class="feature"><span class="feature-icon">📊</span> Dashboard automático</div>
+      <div class="feature"><span class="feature-icon">📥</span> Exporta a PDF y Excel</div>
+    </div>
+  </section>
+
+  <!-- ========== DASHBOARD ========== -->
+  <section id="dashboard" class="hidden">
+
+    <div class="rfc-bar">
+      <label for="rfcInput">Tu RFC:</label>
+      <input id="rfcInput" class="rfc-input" maxlength="13" placeholder="XAXX010101000" />
+      <small id="rfcDetected"></small>
+    </div>
+
+    <div id="dupBanner" class="dup-banner hidden">
+      <span><strong>⚠</strong> <span id="dupCount">0</span> CFDIs duplicados por UUID detectados.</span>
+      <button id="viewDupsBtn">Ver duplicados</button>
+    </div>
+
+    <div class="section-head">
+      <span class="section-num">I. Panorama</span>
+      <h2>Resumen del periodo</h2>
+    </div>
+
+    <div class="kpi-grid" id="kpiGrid"></div>
+    <div class="tip-line">
+      💡 Tip: Este dashboard lo armé en un fin de semana.
+      <a href="https://youtube.com/@aiandyofi" target="_blank" rel="noopener">Te enseño cómo →</a>
+    </div>
+
+    <div class="section-head">
+      <span class="section-num">II. Desglose</span>
+      <h2>Visualización y resumen fiscal</h2>
+    </div>
+
+    <div class="charts-grid">
+      <div class="chart-card"><h3>Facturación mensual</h3><div class="chart-wrap"><canvas id="chartMonthly"></canvas></div></div>
+      <div class="chart-card"><h3>Distribución por tipo</h3><div class="chart-wrap"><canvas id="chartTipo"></canvas></div></div>
+      <div class="chart-card"><h3>Top 10 clientes (emitidas)</h3><div class="chart-wrap"><canvas id="chartTopClients"></canvas></div></div>
+      <div class="chart-card"><h3>Top 10 proveedores (recibidas)</h3><div class="chart-wrap"><canvas id="chartTopVendors"></canvas></div></div>
+    </div>
+
+    <div class="fiscal-panel">
+      <h3>Resumen fiscal del periodo</h3>
+      <table id="fiscalTable" class="fiscal-table"></table>
+      <p class="disclaimer">Este es un cálculo informativo basado en los CFDIs cargados. No sustituye el cálculo oficial de tu contador.</p>
+    </div>
+
+    <div class="section-head">
+      <span class="section-num">III. Exportar</span>
+      <h2>Convierte y descarga</h2>
+    </div>
+
+    <div class="export-bar">
+      <span class="export-bar-label">Plantilla PDF:</span>
+      <select id="templateSelect" class="template-select">
+        <option value="minimalista">Minimalista</option>
+        <option value="ejecutiva">Ejecutiva</option>
+        <option value="fiscal">Fiscal detallada</option>
+      </select>
+      <button id="btnPdfBatch" class="export-btn primary">⬇ PDFs masivos (.zip)</button>
+      <button id="btnExcel" class="export-btn">⬇ Excel consolidado (.xlsx)</button>
+      <button id="btnCsv" class="export-btn">⬇ CSV plano</button>
+      <button id="btnSummaryPdf" class="export-btn">⬇ Resumen fiscal (.pdf)</button>
+    </div>
+
+    <div class="filters">
+      <span class="filter-chip"><strong>Tipo:</strong>
+        <select id="fTipo">
+          <option value="todos">Todos</option><option value="I">I (Ingreso)</option>
+          <option value="E">E (Egreso)</option><option value="P">P (Pago)</option>
+          <option value="N">N (Nómina)</option><option value="T">T (Traslado)</option>
+        </select>
+      </span>
+      <span class="filter-chip"><strong>Dirección:</strong>
+        <select id="fDir">
+          <option value="todas">Todas</option>
+          <option value="emitidas">Emitidas</option>
+          <option value="recibidas">Recibidas</option>
+        </select>
+      </span>
+      <span class="filter-chip"><strong>Mes:</strong>
+        <select id="fMes"><option value="todos">Todos</option></select>
+      </span>
+      <span class="filter-chip"><strong>RFC:</strong>
+        <input id="fRfc" placeholder="Buscar RFC contraparte" size="18" />
+      </span>
+      <input id="searchInput" class="search-input" placeholder="🔍 Buscar en todo (folio, nombre, descripción, UUID…)" />
+    </div>
+
+    <div class="table-wrap">
+      <table class="cfdi" id="cfdiTable">
+        <thead>
+          <tr>
+            <th data-sort="fecha">Fecha</th>
+            <th data-sort="tipo">Tipo</th>
+            <th data-sort="folio">Serie-Folio</th>
+            <th data-sort="emisor">Emisor</th>
+            <th data-sort="receptor">Receptor</th>
+            <th data-sort="subtotal" class="right">Subtotal</th>
+            <th data-sort="iva" class="right">IVA</th>
+            <th data-sort="total" class="right">Total</th>
+            <th data-sort="moneda">Mon.</th>
+            <th data-sort="uuid">UUID</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="cfdiTbody"></tbody>
+      </table>
+      <div class="pagination" id="pagination"></div>
+    </div>
+  </section>
+
+  <!-- ========== FOOTER ========== -->
+  <footer id="footerStrip" class="footer hidden">
+    <div class="footer-row">
+      <span>Construida por <strong>@aiandyofi</strong> con IA. Código abierto, sin rastreo, sin cuenta.</span>
+      <span>
+        <a href="https://youtube.com/@aiandyofi" target="_blank" rel="noopener">YouTube →</a>
+        <a href="https://tiktok.com/@aiandyofi" target="_blank" rel="noopener">TikTok →</a>
+      </span>
+    </div>
+    <div class="footer-sub">¿Quieres una herramienta así para tu problema? Te enseño en el canal.</div>
+  </footer>
+</main>
+
+<!-- ========== SLIDE-OVER ========== -->
+<div id="slideoverBackdrop" class="slideover-backdrop"></div>
+<aside id="slideover" class="slideover" aria-hidden="true">
+  <div class="slideover-head">
+    <h3>Detalle del CFDI</h3>
+    <button class="close-btn" id="slideoverClose" aria-label="Cerrar">×</button>
+  </div>
+  <div class="slideover-body" id="slideoverBody"></div>
+</aside>
+
+<!-- ========== POST-EXPORT MODAL ========== -->
+<div id="exportModal" class="modal-backdrop">
+  <div class="modal">
+    <h3>¿Te ahorró tiempo?</h3>
+    <p>Hice esta herramienta en una tarde usando IA. En mi canal te enseño a construir cosas como esta — sin saber programar.</p>
+    <a class="modal-cta primary" target="_blank" rel="noopener" href="https://youtube.com/@aiandyofi">Ver cómo la construí (YouTube)</a>
+    <a class="modal-cta outline" target="_blank" rel="noopener" href="https://tiktok.com/@aiandyofi">Seguir en TikTok @aiandyofi</a>
+    <div class="modal-dismiss" id="modalDismiss">Ya te sigo, cerrar</div>
+  </div>
+</div>
+
+<!-- ========== DUPLICATES MODAL ========== -->
+<div id="dupModal" class="modal-backdrop">
+  <div class="modal" style="max-width:560px;text-align:left;">
+    <h3 style="text-align:left;">CFDIs con UUID duplicado</h3>
+    <p style="text-align:left;">Estos UUIDs aparecen más de una vez en tu carga. Revisa si son archivos repetidos.</p>
+    <div id="dupList" class="dup-list"></div>
+    <div style="text-align:center;margin-top:16px;">
+      <div class="modal-dismiss" id="dupModalDismiss" style="display:inline-block;">Cerrar</div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== TOAST ========== -->
+<div id="toast" class="toast"></div>
+
+<!-- ========== HIDDEN QR CONTAINER ========== -->
+<div id="qrHidden" style="position:absolute;left:-9999px;top:-9999px;"></div>
+
+<script>
+/* ============================================================
+ * CFDIconv — by @aiandyofi
+ * ============================================================ */
+(function() {
+'use strict';
+
+/* ---------- STATE ---------- */
+const state = {
+  cfdis: [],          // parsed CFDIs
+  errors: [],         // parse errors
+  userRfc: null,
+  filters: { tipo: 'todos', dir: 'todas', mes: 'todos', rfc: '', q: '' },
+  page: 1,
+  pageSize: 25,
+  sortBy: 'fecha',
+  sortDir: 'desc',
+  template: 'minimalista',
+  charts: {},
+  duplicates: []
+};
+
+/* ---------- HELPERS ---------- */
+const $ = (s) => document.querySelector(s);
+const $$ = (s) => Array.from(document.querySelectorAll(s));
+const MONTHS_ES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+const MONTHS_FULL = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+function fmtMoney(n, cur) {
+  cur = cur || 'MXN';
+  const v = Number(n) || 0;
+  const num = new Intl.NumberFormat('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v);
+  return '$' + num + '\u2009' + cur;
+}
+function fmtNum(n, dec) {
+  if (dec === undefined) dec = 0;
+  return new Intl.NumberFormat('es-MX', { minimumFractionDigits: dec, maximumFractionDigits: dec }).format(Number(n) || 0);
+}
+function fmtDate(s) {
+  if (!s) return '';
+  const d = new Date(s);
+  if (isNaN(d)) return s;
+  return String(d.getDate()).padStart(2,'0') + ' ' + MONTHS_ES[d.getMonth()] + ' ' + d.getFullYear();
+}
+function fmtDateTime(s) {
+  if (!s) return '';
+  const d = new Date(s);
+  if (isNaN(d)) return s;
+  return fmtDate(s) + ' ' + String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+}
+function trunc(s, n) {
+  if (!s) return '';
+  if (s.length <= n) return s;
+  return s.slice(0, n) + '…';
+}
+function escapeHtml(s) {
+  if (s === undefined || s === null) return '';
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
+}
+function downloadBlob(blob, name) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = name;
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 100);
+}
+function safeName(s) {
+  return String(s || '').replace(/[^a-zA-Z0-9_\-]/g, '_').slice(0, 60);
+}
+
+/* ---------- XML PARSING ---------- */
+// Returns array of nodes by local name (any namespace)
+function nsEls(parent, name) {
+  if (!parent) return [];
+  return Array.from(parent.getElementsByTagNameNS('*', name));
+}
+function nsEl(parent, name) {
+  if (!parent) return null;
+  const a = parent.getElementsByTagNameNS('*', name);
+  return a && a.length ? a[0] : null;
+}
+function attr(el, name) {
+  if (!el) return '';
+  return el.getAttribute(name) || '';
+}
+function num(v) { const n = parseFloat(v); return isNaN(n) ? 0 : n; }
+
+function sniffNotXml(buf) {
+  const bytes = new Uint8Array(buf);
+  if (bytes.length < 4) return 'Archivo vacío o muy corto';
+  // PDF
+  if (bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46) return 'No es XML — es un PDF (.pdf con extensión .xml)';
+  // ZIP / Office
+  if (bytes[0] === 0x50 && bytes[1] === 0x4B) return 'No es XML — es un archivo comprimido (ZIP/Office)';
+  // PNG
+  if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47) return 'No es XML — es una imagen PNG';
+  // JPEG
+  if (bytes[0] === 0xFF && bytes[1] === 0xD8 && bytes[2] === 0xFF) return 'No es XML — es una imagen JPEG';
+  // RAR
+  if (bytes[0] === 0x52 && bytes[1] === 0x61 && bytes[2] === 0x72) return 'No es XML — es un archivo RAR';
+  // 7z
+  if (bytes[0] === 0x37 && bytes[1] === 0x7A) return 'No es XML — es un archivo 7z';
+  // PKCS#7 (signed XML wrapper, .xml.p7m sometimes named .xml)
+  if (bytes[0] === 0x30 && (bytes[1] === 0x80 || bytes[1] === 0x82 || bytes[1] === 0x83 || bytes[1] === 0x84)) return 'No es XML plano — parece estar firmado/cifrado (PKCS#7)';
+  return null;
+}
+
+function decodeXmlBuffer(buf) {
+  const bytes = new Uint8Array(buf);
+  // BOM detection
+  if (bytes.length >= 3 && bytes[0] === 0xEF && bytes[1] === 0xBB && bytes[2] === 0xBF) {
+    return new TextDecoder('utf-8').decode(bytes.subarray(3));
+  }
+  if (bytes.length >= 2 && bytes[0] === 0xFF && bytes[1] === 0xFE) {
+    return new TextDecoder('utf-16le').decode(bytes.subarray(2));
+  }
+  if (bytes.length >= 2 && bytes[0] === 0xFE && bytes[1] === 0xFF) {
+    return new TextDecoder('utf-16be').decode(bytes.subarray(2));
+  }
+  // Default to UTF-8
+  let text;
+  try { text = new TextDecoder('utf-8', { fatal: true }).decode(bytes); }
+  catch (e) {
+    // UTF-8 decode failed → try Windows-1252 (legacy CFDIs sometimes use this)
+    try { text = new TextDecoder('windows-1252').decode(bytes); }
+    catch (e2) { text = new TextDecoder('utf-8').decode(bytes); }
+  }
+  // Honor declared encoding if it differs
+  const encMatch = text.match(/<\?xml[^?]*encoding\s*=\s*["']([^"']+)["']/i);
+  if (encMatch) {
+    const enc = encMatch[1].toLowerCase().replace(/[^a-z0-9-]/g, '');
+    if (enc && enc !== 'utf-8' && enc !== 'utf8') {
+      try {
+        const altText = new TextDecoder(enc).decode(bytes);
+        if (altText && altText.indexOf('<') !== -1) text = altText;
+      } catch (e) { /* keep current */ }
+    }
+  }
+  return text;
+}
+
+function cleanXmlText(t) {
+  if (!t) return '';
+  if (t.charCodeAt(0) === 0xFEFF) t = t.slice(1);
+  const lt = t.indexOf('<');
+  if (lt > 0) t = t.slice(lt);
+  // Strip control chars except tab, LF, CR
+  t = t.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
+  // Strip the Unicode replacement char (decoder failure marker)
+  t = t.replace(/\uFFFD/g, '');
+  return t;
+}
+
+function parseCFDI(xmlText, fileName) {
+  let cleaned = cleanXmlText(xmlText);
+  const parser = new DOMParser();
+  let doc = parser.parseFromString(cleaned, 'application/xml');
+  let perr = doc.querySelector('parsererror');
+  if (perr) {
+    // Retry 1: force UTF-8 declaration
+    const noDecl = cleaned.replace(/^<\?xml[^?]*\?>/i, '').trim();
+    const retry = '<?xml version="1.0" encoding="UTF-8"?>' + noDecl;
+    doc = parser.parseFromString(retry, 'application/xml');
+    perr = doc.querySelector('parsererror');
+  }
+  if (perr) {
+    // Retry 2: collapse whitespace inside attribute names (some SAT files have line breaks inside tags)
+    const flat = cleaned.replace(/<\?xml[^?]*\?>/i, '').replace(/[\r\n\t]+/g, ' ').trim();
+    const retry2 = '<?xml version="1.0" encoding="UTF-8"?>' + flat;
+    doc = parser.parseFromString(retry2, 'application/xml');
+    perr = doc.querySelector('parsererror');
+  }
+  if (perr) {
+    const errMsg = (perr.textContent || '').replace(/\s+/g, ' ').slice(0, 140);
+    const snippet = cleaned.slice(0, 120).replace(/\s+/g, ' ');
+    throw new Error(errMsg + ' | inicio: ' + snippet);
+  }
+  const c = nsEl(doc, 'Comprobante');
+  if (!c) throw new Error('No es un CFDI válido (no se encontró Comprobante). Inicio: ' + cleaned.slice(0, 80));
+
+  const emisor = nsEl(c, 'Emisor');
+  const receptor = nsEl(c, 'Receptor');
+  const conceptosNode = nsEl(c, 'Conceptos');
+  const conceptos = nsEls(conceptosNode, 'Concepto').map(co => {
+    const impConcepto = nsEl(co, 'Impuestos');
+    const traslados = nsEls(impConcepto, 'Traslado').map(t => ({
+      base: num(attr(t,'Base')), impuesto: attr(t,'Impuesto'), tipoFactor: attr(t,'TipoFactor'),
+      tasa: num(attr(t,'TasaOCuota')), importe: num(attr(t,'Importe'))
+    }));
+    const retenciones = nsEls(impConcepto, 'Retencion').map(t => ({
+      base: num(attr(t,'Base')), impuesto: attr(t,'Impuesto'), tipoFactor: attr(t,'TipoFactor'),
+      tasa: num(attr(t,'TasaOCuota')), importe: num(attr(t,'Importe'))
+    }));
+    return {
+      claveProdServ: attr(co,'ClaveProdServ'),
+      noIdentificacion: attr(co,'NoIdentificacion'),
+      cantidad: num(attr(co,'Cantidad')) || 1,
+      claveUnidad: attr(co,'ClaveUnidad'),
+      unidad: attr(co,'Unidad'),
+      descripcion: attr(co,'Descripcion'),
+      valorUnitario: num(attr(co,'ValorUnitario')),
+      importe: num(attr(co,'Importe')),
+      descuento: num(attr(co,'Descuento')),
+      traslados, retenciones
+    };
+  });
+
+  // Top-level impuestos
+  const impuestos = nsEl(c, 'Impuestos');
+  const totImpTras = num(attr(impuestos, 'TotalImpuestosTrasladados'));
+  const totImpRet = num(attr(impuestos, 'TotalImpuestosRetenidos'));
+  const traslados = nsEls(nsEl(impuestos,'Traslados'), 'Traslado').map(t => ({
+    base: num(attr(t,'Base')), impuesto: attr(t,'Impuesto'),
+    tipoFactor: attr(t,'TipoFactor'), tasa: num(attr(t,'TasaOCuota')), importe: num(attr(t,'Importe'))
+  }));
+  const retenciones = nsEls(nsEl(impuestos,'Retenciones'), 'Retencion').map(t => ({
+    impuesto: attr(t,'Impuesto'), importe: num(attr(t,'Importe'))
+  }));
+
+  // Tax breakdown
+  const tax = { iva16: 0, iva8: 0, iva0: 0, ivaExento: 0, ivaRet: 0, isrRet: 0, iepsTras: 0, iepsRet: 0 };
+  traslados.forEach(t => {
+    if (t.impuesto === '002') {
+      if (t.tipoFactor === 'Exento') tax.ivaExento += t.base;
+      else if (t.tasa >= 0.155 && t.tasa <= 0.165) tax.iva16 += t.importe;
+      else if (t.tasa >= 0.075 && t.tasa <= 0.085) tax.iva8 += t.importe;
+      else if (t.tasa === 0) tax.iva0 += t.base;
+    } else if (t.impuesto === '003') {
+      tax.iepsTras += t.importe;
+    }
+  });
+  retenciones.forEach(r => {
+    if (r.impuesto === '001') tax.isrRet += r.importe;
+    else if (r.impuesto === '002') tax.ivaRet += r.importe;
+    else if (r.impuesto === '003') tax.iepsRet += r.importe;
+  });
+
+  // TimbreFiscalDigital
+  const tfd = nsEl(c, 'TimbreFiscalDigital');
+
+  // Complementos: Pago / Nomina
+  let pago = null, nomina = null;
+  const pagosNode = nsEl(c, 'Pagos');
+  if (pagosNode) {
+    const pagoNodes = nsEls(pagosNode, 'Pago');
+    const docs = [];
+    pagoNodes.forEach(p => {
+      const drs = nsEls(p, 'DoctoRelacionado');
+      drs.forEach(dr => {
+        docs.push({
+          uuid: attr(dr,'IdDocumento'),
+          serie: attr(dr,'Serie'),
+          folio: attr(dr,'Folio'),
+          impPagado: num(attr(dr,'ImpPagado')),
+          impSaldoAnt: num(attr(dr,'ImpSaldoAnt')),
+          impSaldoInsoluto: num(attr(dr,'ImpSaldoInsoluto')),
+          numParcialidad: attr(dr,'NumParcialidad'),
+          monedaDR: attr(dr,'MonedaDR')
+        });
+      });
+    });
+    const totales = nsEl(pagosNode, 'Totales');
+    pago = {
+      monto: pagoNodes.reduce((s,p) => s + num(attr(p,'Monto')), 0),
+      fechaPago: pagoNodes[0] ? attr(pagoNodes[0],'FechaPago') : '',
+      formaPago: pagoNodes[0] ? attr(pagoNodes[0],'FormaDePagoP') : '',
+      monedaP: pagoNodes[0] ? attr(pagoNodes[0],'MonedaP') : '',
+      docs,
+      montoTotalPagos: num(attr(totales,'MontoTotalPagos'))
+    };
+  }
+  const nominaNode = nsEl(c, 'Nomina');
+  if (nominaNode) {
+    nomina = {
+      totalPercepciones: num(attr(nominaNode, 'TotalPercepciones')),
+      totalDeducciones: num(attr(nominaNode, 'TotalDeducciones')),
+      totalOtrosPagos: num(attr(nominaNode, 'TotalOtrosPagos')),
+      tipoNomina: attr(nominaNode, 'TipoNomina')
+    };
+  }
+
+  return {
+    fileName: fileName || '',
+    version: attr(c, 'Version') || attr(c, 'version'),
+    serie: attr(c, 'Serie'),
+    folio: attr(c, 'Folio'),
+    fecha: attr(c, 'Fecha'),
+    formaPago: attr(c, 'FormaPago'),
+    metodoPago: attr(c, 'MetodoPago'),
+    moneda: attr(c, 'Moneda') || 'MXN',
+    tipoCambio: num(attr(c, 'TipoCambio')) || 1,
+    subtotal: num(attr(c, 'SubTotal')),
+    descuento: num(attr(c, 'Descuento')),
+    total: num(attr(c, 'Total')),
+    tipo: attr(c, 'TipoDeComprobante'),
+    lugarExpedicion: attr(c, 'LugarExpedicion'),
+    exportacion: attr(c, 'Exportacion'),
+    emisorRfc: attr(emisor, 'Rfc'),
+    emisorNombre: attr(emisor, 'Nombre'),
+    emisorRegimen: attr(emisor, 'RegimenFiscal'),
+    receptorRfc: attr(receptor, 'Rfc'),
+    receptorNombre: attr(receptor, 'Nombre'),
+    receptorUsoCFDI: attr(receptor, 'UsoCFDI'),
+    receptorDomicilioFiscal: attr(receptor, 'DomicilioFiscalReceptor'),
+    receptorRegimen: attr(receptor, 'RegimenFiscalReceptor'),
+    conceptos,
+    totImpTras, totImpRet, traslados, retenciones, tax,
+    uuid: attr(tfd, 'UUID'),
+    fechaTimbrado: attr(tfd, 'FechaTimbrado'),
+    noCertificadoSAT: attr(tfd, 'NoCertificadoSAT'),
+    rfcProvCertif: attr(tfd, 'RfcProvCertif'),
+    selloSAT: attr(tfd, 'SelloSAT'),
+    pago, nomina
+  };
+}
+
+/* ---------- ASYNC PARSER (main thread, chunked) ---------- */
+async function parseFilesAsync(files, onProgress) {
+  const results = [];
+  const errors = [];
+  const CHUNK = 25;
+  for (let i = 0; i < files.length; i++) {
+    const f = files[i];
+    try {
+      const cfdi = parseCFDI(f.content, f.name);
+      results.push(cfdi);
+      if (!cfdi.uuid) errors.push({ name: f.name, status: 'warn', message: 'Sin UUID (no timbrado)' });
+    } catch (err) {
+      errors.push({ name: f.name, status: 'err', message: err.message });
+    }
+    if (onProgress) onProgress(i + 1, files.length);
+    if ((i + 1) % CHUNK === 0) {
+      await new Promise(r => setTimeout(r, 0));
+    }
+  }
+  return { results, errors };
+}
+
+/* ---------- INGESTION ---------- */
+const dropzone = $('#dropzone');
+const fileInput = $('#fileInput');
+
+['dragenter','dragover'].forEach(ev => {
+  dropzone.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); dropzone.classList.add('dragover'); });
+});
+['dragleave','drop'].forEach(ev => {
+  dropzone.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); dropzone.classList.remove('dragover'); });
+});
+dropzone.addEventListener('drop', e => {
+  const files = Array.from(e.dataTransfer.files || []);
+  if (files.length) handleFiles(files);
+});
+dropzone.addEventListener('click', () => fileInput.click());
+dropzone.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); } });
+fileInput.addEventListener('change', e => {
+  const files = Array.from(e.target.files || []);
+  if (files.length) handleFiles(files);
+});
+
+async function handleFiles(rawFiles) {
+  const progressWrap = $('#progressWrap');
+  const progressFill = $('#progressFill');
+  const progressText = $('#progressText');
+  const fileStatuses = $('#fileStatuses');
+  fileStatuses.innerHTML = '';
+  progressWrap.classList.remove('hidden');
+  progressFill.style.width = '0';
+  progressText.textContent = 'Preparando archivos…';
+
+  // Expand ZIPs and gather XML content
+  const xmlFiles = []; // {name, content}
+  for (const f of rawFiles) {
+    const lower = (f.name || '').toLowerCase();
+    if (lower.endsWith('.zip') || f.type === 'application/zip' || f.type === 'application/x-zip-compressed') {
+      try {
+        const zip = await JSZip.loadAsync(f);
+        const entries = Object.values(zip.files).filter(z => !z.dir && /\.xml$/i.test(z.name));
+        for (const z of entries) {
+          const buf = await z.async('arraybuffer');
+          const sniffed = sniffNotXml(buf);
+          if (sniffed) { addFileStatus({ name: z.name.split('/').pop(), status: 'err', message: sniffed }); continue; }
+          xmlFiles.push({ name: z.name.split('/').pop(), content: decodeXmlBuffer(buf) });
+        }
+      } catch (err) {
+        addFileStatus({ name: f.name, status: 'err', message: 'No se pudo abrir el ZIP' });
+      }
+    } else if (lower.endsWith('.xml') || f.type === 'text/xml' || f.type === 'application/xml') {
+      const buf = await f.arrayBuffer();
+      const sniffed = sniffNotXml(buf);
+      if (sniffed) { addFileStatus({ name: f.name, status: 'err', message: sniffed }); continue; }
+      xmlFiles.push({ name: f.name, content: decodeXmlBuffer(buf) });
+    } else {
+      // skip silently per spec
+    }
+  }
+
+  if (xmlFiles.length === 0) {
+    progressText.textContent = 'No se encontraron archivos XML válidos.';
+    return;
+  }
+
+  progressText.textContent = 'Procesando ' + xmlFiles.length + ' CFDIs en tu navegador…';
+
+  const { results, errors } = await parseFilesAsync(xmlFiles, (current, total) => {
+    const pct = Math.round((current / total) * 100);
+    progressFill.style.width = pct + '%';
+    progressText.textContent = 'Procesando ' + current + ' de ' + total + '…';
+  });
+
+  state.cfdis = state.cfdis.concat(results);
+  results.forEach(c => addFileStatus({ name: c.fileName, status: 'ok', message: c.uuid ? trunc(c.uuid, 12) : 'sin UUID' }));
+  errors.forEach(addFileStatus);
+  progressFill.style.width = '100%';
+  progressText.textContent = '✓ ' + results.length + ' CFDIs procesados' + (errors.length ? ' · ' + errors.length + ' con problemas' : '');
+  onDataReady();
+}
+
+function addFileStatus(s) {
+  const div = document.createElement('div');
+  div.className = 'file-status';
+  let icon = '✓', cls = 'status-ok';
+  if (s.status === 'warn') { icon = '⚠'; cls = 'status-warn'; }
+  if (s.status === 'err') { icon = '✗'; cls = 'status-err'; }
+  div.innerHTML = '<span class="' + cls + '">' + icon + '</span><span>' + escapeHtml(s.name) + '</span>' + (s.message ? '<span style="color:#9aa4b1">— ' + escapeHtml(s.message) + '</span>' : '');
+  $('#fileStatuses').appendChild(div);
+}
+
+/* ---------- AFTER PARSE ---------- */
+function onDataReady() {
+  if (state.cfdis.length === 0) return;
+  // Hide hero, show dashboard
+  $('#hero').classList.add('hidden');
+  $('#heroFeatures').classList.add('hidden');
+  $('#dashboard').classList.remove('hidden');
+  $('#footerStrip').classList.remove('hidden');
+
+  detectUserRfc();
+  populateMonthFilter();
+  detectDuplicates();
+  rerenderAll();
+}
+
+function detectUserRfc() {
+  if (state.userRfc) return;
+  const counts = {};
+  state.cfdis.forEach(c => {
+    if (c.emisorRfc) counts[c.emisorRfc] = (counts[c.emisorRfc] || 0) + 1;
+    if (c.receptorRfc) counts[c.receptorRfc] = (counts[c.receptorRfc] || 0) + 1;
+  });
+  const sorted = Object.entries(counts).sort((a,b) => b[1] - a[1]);
+  if (sorted.length) {
+    state.userRfc = sorted[0][0];
+    $('#rfcInput').value = state.userRfc;
+    $('#rfcDetected').textContent = 'Detectado automáticamente. Cambia si no es correcto.';
+  }
+}
+$('#rfcInput').addEventListener('input', e => {
+  state.userRfc = e.target.value.trim().toUpperCase();
+  $('#rfcDetected').textContent = '';
+  rerenderAll();
+});
+
+function detectDuplicates() {
+  const map = {};
+  state.cfdis.forEach(c => {
+    if (!c.uuid) return;
+    map[c.uuid] = (map[c.uuid] || []);
+    map[c.uuid].push(c);
+  });
+  state.duplicates = Object.entries(map).filter(([k, v]) => v.length > 1).map(([uuid, list]) => ({ uuid, list }));
+  if (state.duplicates.length > 0) {
+    $('#dupBanner').classList.remove('hidden');
+    $('#dupCount').textContent = state.duplicates.reduce((s, d) => s + d.list.length, 0);
+  } else {
+    $('#dupBanner').classList.add('hidden');
+  }
+}
+$('#viewDupsBtn').addEventListener('click', () => {
+  const ul = state.duplicates.map(d => {
+    const items = d.list.map(c =>
+      '<div>' + escapeHtml(c.fileName) + ' · ' + escapeHtml(c.serie || '') + '-' + escapeHtml(c.folio || '') +
+      ' · ' + fmtMoney(c.total, c.moneda) + '</div>'
+    ).join('');
+    return '<div class="item"><div class="mono" style="font-size:11.5px;color:#5B6472;">' + escapeHtml(d.uuid) + '</div>' + items + '</div>';
+  }).join('');
+  $('#dupList').innerHTML = ul || '<p>No hay duplicados.</p>';
+  $('#dupModal').classList.add('show');
+});
+$('#dupModalDismiss').addEventListener('click', () => $('#dupModal').classList.remove('show'));
+
+/* ---------- FILTER / SORT ---------- */
+function populateMonthFilter() {
+  const months = new Set();
+  state.cfdis.forEach(c => {
+    const d = new Date(c.fecha);
+    if (!isNaN(d)) months.add(d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0'));
+  });
+  const sel = $('#fMes');
+  sel.innerHTML = '<option value="todos">Todos</option>';
+  Array.from(months).sort().reverse().forEach(m => {
+    const [y, mm] = m.split('-');
+    const opt = document.createElement('option');
+    opt.value = m;
+    opt.textContent = MONTHS_FULL[parseInt(mm,10)-1] + ' ' + y;
+    sel.appendChild(opt);
+  });
+}
+
+['fTipo','fDir','fMes','fRfc','searchInput','templateSelect'].forEach(id => {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.addEventListener('input', e => {
+    if (id === 'fTipo') state.filters.tipo = e.target.value;
+    else if (id === 'fDir') state.filters.dir = e.target.value;
+    else if (id === 'fMes') state.filters.mes = e.target.value;
+    else if (id === 'fRfc') state.filters.rfc = e.target.value.trim().toUpperCase();
+    else if (id === 'searchInput') state.filters.q = e.target.value.trim().toLowerCase();
+    else if (id === 'templateSelect') { state.template = e.target.value; return; }
+    state.page = 1;
+    rerenderTable();
+  });
+});
+
+function getDirection(c) {
+  if (!state.userRfc) return 'todas';
+  if (c.emisorRfc === state.userRfc) return 'emitidas';
+  if (c.receptorRfc === state.userRfc) return 'recibidas';
+  return 'otra';
+}
+
+function getFiltered() {
+  return state.cfdis.filter(c => {
+    const f = state.filters;
+    if (f.tipo !== 'todos' && c.tipo !== f.tipo) return false;
+    if (f.dir !== 'todas') {
+      if (getDirection(c) !== f.dir) return false;
+    }
+    if (f.mes !== 'todos') {
+      const d = new Date(c.fecha);
+      const key = isNaN(d) ? '' : d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+      if (key !== f.mes) return false;
+    }
+    if (f.rfc) {
+      const other = c.emisorRfc === state.userRfc ? c.receptorRfc : c.emisorRfc;
+      if (!(other || '').toUpperCase().includes(f.rfc) &&
+          !(c.emisorRfc || '').toUpperCase().includes(f.rfc) &&
+          !(c.receptorRfc || '').toUpperCase().includes(f.rfc)) return false;
+    }
+    if (f.q) {
+      const hay = (c.serie + ' ' + c.folio + ' ' + c.emisorNombre + ' ' + c.receptorNombre + ' ' + c.uuid + ' ' +
+        c.conceptos.map(co => co.descripcion).join(' ')).toLowerCase();
+      if (!hay.includes(f.q)) return false;
+    }
+    return true;
+  });
+}
+
+function getSorted(rows) {
+  const k = state.sortBy, dir = state.sortDir === 'asc' ? 1 : -1;
+  const sorted = rows.slice().sort((a, b) => {
+    let va, vb;
+    if (k === 'fecha') { va = a.fecha; vb = b.fecha; }
+    else if (k === 'tipo') { va = a.tipo; vb = b.tipo; }
+    else if (k === 'folio') { va = (a.serie || '') + (a.folio || ''); vb = (b.serie || '') + (b.folio || ''); }
+    else if (k === 'emisor') { va = a.emisorNombre || ''; vb = b.emisorNombre || ''; }
+    else if (k === 'receptor') { va = a.receptorNombre || ''; vb = b.receptorNombre || ''; }
+    else if (k === 'subtotal') { va = a.subtotal; vb = b.subtotal; }
+    else if (k === 'iva') { va = a.tax.iva16 + a.tax.iva8; vb = b.tax.iva16 + b.tax.iva8; }
+    else if (k === 'total') { va = a.total; vb = b.total; }
+    else if (k === 'moneda') { va = a.moneda; vb = b.moneda; }
+    else if (k === 'uuid') { va = a.uuid; vb = b.uuid; }
+    if (typeof va === 'string') return va.localeCompare(vb || '') * dir;
+    return ((va || 0) - (vb || 0)) * dir;
+  });
+  return sorted;
+}
+
+$$('#cfdiTable thead th[data-sort]').forEach(th => {
+  th.addEventListener('click', () => {
+    const key = th.dataset.sort;
+    if (state.sortBy === key) state.sortDir = state.sortDir === 'asc' ? 'desc' : 'asc';
+    else { state.sortBy = key; state.sortDir = 'asc'; }
+    rerenderTable();
+  });
+});
+
+/* ---------- RENDER: KPIs ---------- */
+function computeKPIs() {
+  const emit = state.cfdis.filter(c => getDirection(c) === 'emitidas');
+  const recv = state.cfdis.filter(c => getDirection(c) === 'recibidas');
+  const sumTotal = arr => arr.reduce((s,c) => s + (c.total || 0) * (c.tipoCambio || 1), 0);
+  const sumIvaTras = arr => arr.reduce((s,c) => s + c.tax.iva16 + c.tax.iva8, 0);
+  const sumIsrRet = arr => arr.reduce((s,c) => s + c.tax.isrRet, 0);
+  return {
+    total: state.cfdis.length,
+    emitCount: emit.length, emitSum: sumTotal(emit),
+    recvCount: recv.length, recvSum: sumTotal(recv),
+    ivaTrasladado: sumIvaTras(emit),
+    ivaAcreditable: sumIvaTras(recv),
+    isrRetenido: sumIsrRet(emit) + sumIsrRet(recv)
+  };
+}
+
+function spansMultipleMonths() {
+  const months = new Set();
+  state.cfdis.forEach(c => {
+    const d = new Date(c.fecha);
+    if (!isNaN(d)) months.add(d.getFullYear() + '-' + d.getMonth());
+  });
+  return months.size > 1;
+}
+
+function makeSparkline(values) {
+  if (!values || values.length < 2) return '';
+  const max = Math.max(...values, 1);
+  const min = Math.min(...values, 0);
+  const range = max - min || 1;
+  const w = 120, h = 28;
+  const step = w / (values.length - 1);
+  const points = values.map((v,i) => (i*step).toFixed(1) + ',' + (h - ((v - min)/range)*h).toFixed(1)).join(' ');
+  return '<svg viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none"><polyline fill="none" stroke="#00BFFF" stroke-width="1.5" points="' + points + '" /></svg>';
+}
+
+function getMonthlySeries(direction) {
+  const map = {};
+  state.cfdis.forEach(c => {
+    if (direction && getDirection(c) !== direction) return;
+    const d = new Date(c.fecha);
+    if (isNaN(d)) return;
+    const key = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+    map[key] = (map[key] || 0) + (c.total || 0) * (c.tipoCambio || 1);
+  });
+  return Object.entries(map).sort().map(([k, v]) => v);
+}
+
+function renderKPIs() {
+  const k = computeKPIs();
+  const showSpark = spansMultipleMonths();
+  const allSeries = getMonthlySeries(null);
+  const emitSeries = getMonthlySeries('emitidas');
+  const recvSeries = getMonthlySeries('recibidas');
+  const cards = [
+    { label: 'Total CFDIs', value: k.total, isMoney: false, sparkData: showSpark ? allSeries : null },
+    { label: 'Emitidas', value: k.emitSum, sub: k.emitCount + ' documentos', isMoney: true, sparkData: showSpark ? emitSeries : null },
+    { label: 'Recibidas', value: k.recvSum, sub: k.recvCount + ' documentos', isMoney: true, sparkData: showSpark ? recvSeries : null },
+    { label: 'IVA trasladado', sub: 'lo que debes enterar', value: k.ivaTrasladado, isMoney: true },
+    { label: 'IVA acreditable', sub: 'lo que puedes deducir', value: k.ivaAcreditable, isMoney: true },
+    { label: 'ISR retenido', value: k.isrRetenido, isMoney: true }
+  ];
+  const grid = $('#kpiGrid');
+  grid.innerHTML = '';
+  cards.forEach((c, i) => {
+    const card = document.createElement('div');
+    card.className = 'kpi-card';
+    card.innerHTML =
+      '<div class="kpi-label">' + c.label + '</div>' +
+      '<div class="kpi-value" data-target="' + c.value + '" data-money="' + (c.isMoney?'1':'0') + '">' + (c.isMoney ? fmtMoney(0) : '0') + '</div>' +
+      (c.sub ? '<div class="kpi-sub">' + c.sub + '</div>' : '') +
+      (c.sparkData && c.sparkData.length > 1 ? '<div class="kpi-spark">' + makeSparkline(c.sparkData) + '</div>' : '');
+    grid.appendChild(card);
+    setTimeout(() => animateNumber(card.querySelector('.kpi-value'), c.value, c.isMoney), 30 + i * 40);
+  });
+}
+
+function animateNumber(el, target, isMoney) {
+  const start = performance.now();
+  const dur = 600;
+  function tick(now) {
+    const t = Math.min(1, (now - start) / dur);
+    const eased = 1 - Math.pow(1 - t, 3); // easeOut cubic
+    const v = target * eased;
+    el.textContent = isMoney ? fmtMoney(v) : fmtNum(Math.round(v));
+    if (t < 1) requestAnimationFrame(tick);
+    else el.textContent = isMoney ? fmtMoney(target) : fmtNum(Math.round(target));
+  }
+  requestAnimationFrame(tick);
+}
+
+/* ---------- RENDER: CHARTS ---------- */
+const COLORS = {
+  primary: '#00BFFF', primaryDark: '#0095CC',
+  ink: '#0F1419', muted: '#5B6472', accent: '#E85D2F',
+  success: '#0B8B4F', warning: '#D4A017'
+};
+const CHART_PALETTE = ['#00BFFF', '#0F1419', '#E85D2F', '#0B8B4F', '#D4A017', '#5B6472', '#A8DADC', '#7B68EE'];
+
+const COMMON_CHART_OPTS = {
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: {
+    legend: { labels: { font: { family: 'Inter Tight', size: 12 }, color: '#0F1419' } },
+    tooltip: {
+      backgroundColor: '#0F1419', titleFont: { family: 'Inter Tight', weight: '600' },
+      bodyFont: { family: 'Inter Tight' }, padding: 10, cornerRadius: 6,
+      callbacks: {
+        label: (ctx) => {
+          const lbl = ctx.dataset.label || ctx.label || '';
+          const v = ctx.parsed.y !== undefined ? ctx.parsed.y : (ctx.parsed.x !== undefined ? ctx.parsed.x : ctx.parsed);
+          return (lbl ? lbl + ': ' : '') + fmtMoney(v);
+        }
+      }
+    }
+  }
+};
+
+function destroyChart(key) {
+  if (state.charts[key]) { state.charts[key].destroy(); delete state.charts[key]; }
+}
+
+function renderCharts() {
+  renderMonthlyChart();
+  renderTipoChart();
+  renderTopChart('chartTopClients', 'emitidas', 'receptor');
+  renderTopChart('chartTopVendors', 'recibidas', 'emisor');
+}
+
+function renderMonthlyChart() {
+  destroyChart('monthly');
+  const months = {};
+  state.cfdis.forEach(c => {
+    const d = new Date(c.fecha);
+    if (isNaN(d)) return;
+    const key = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+    if (!months[key]) months[key] = { emit: 0, recv: 0 };
+    const dir = getDirection(c);
+    const v = (c.total || 0) * (c.tipoCambio || 1);
+    if (dir === 'emitidas') months[key].emit += v;
+    else if (dir === 'recibidas') months[key].recv += v;
+  });
+  const keys = Object.keys(months).sort();
+  const labels = keys.map(k => {
+    const [y, m] = k.split('-');
+    return MONTHS_ES[parseInt(m,10)-1] + " '" + y.slice(2);
+  });
+  const emit = keys.map(k => months[k].emit);
+  const recv = keys.map(k => months[k].recv);
+  const ctx = $('#chartMonthly').getContext('2d');
+  state.charts.monthly = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Emitidas', data: emit, backgroundColor: COLORS.primary, stack: 'a', borderRadius: 4 },
+        { label: 'Recibidas', data: recv, backgroundColor: COLORS.ink, stack: 'a', borderRadius: 4 }
+      ]
+    },
+    options: Object.assign({}, COMMON_CHART_OPTS, {
+      scales: {
+        x: { stacked: true, grid: { display: false }, ticks: { color: COLORS.muted, font: { family: 'Inter Tight', size: 11 } } },
+        y: { stacked: true, grid: { color: '#EEEDE6' }, ticks: { color: COLORS.muted, font: { family: 'Inter Tight', size: 11 }, callback: v => '$' + fmtNum(v) } }
+      }
+    })
+  });
+}
+
+function renderTipoChart() {
+  destroyChart('tipo');
+  const counts = {};
+  state.cfdis.forEach(c => { counts[c.tipo || '?'] = (counts[c.tipo || '?'] || 0) + 1; });
+  const labels = Object.keys(counts);
+  const data = labels.map(k => counts[k]);
+  const ctx = $('#chartTipo').getContext('2d');
+  state.charts.tipo = new Chart(ctx, {
+    type: 'doughnut',
+    data: { labels: labels.map(l => 'Tipo ' + l), datasets: [{ data, backgroundColor: CHART_PALETTE, borderWidth: 2, borderColor: '#fff' }] },
+    options: Object.assign({}, COMMON_CHART_OPTS, {
+      cutout: '65%',
+      plugins: Object.assign({}, COMMON_CHART_OPTS.plugins, {
+        tooltip: Object.assign({}, COMMON_CHART_OPTS.plugins.tooltip, {
+          callbacks: { label: ctx => ctx.label + ': ' + ctx.parsed + ' CFDIs' }
+        })
+      })
+    })
+  });
+}
+
+function renderTopChart(canvasId, direction, party) {
+  const key = canvasId === 'chartTopClients' ? 'topClients' : 'topVendors';
+  destroyChart(key);
+  const map = {};
+  state.cfdis.forEach(c => {
+    if (getDirection(c) !== direction) return;
+    const rfcKey = (party === 'receptor' ? c.receptorRfc : c.emisorRfc) || '';
+    const nameKey = (party === 'receptor' ? c.receptorNombre : c.emisorNombre) || rfcKey;
+    if (!rfcKey) return;
+    if (!map[rfcKey]) map[rfcKey] = { name: nameKey, total: 0 };
+    map[rfcKey].total += (c.total || 0) * (c.tipoCambio || 1);
+  });
+  const sorted = Object.entries(map).map(([rfc, v]) => ({ rfc, ...v })).sort((a,b) => b.total - a.total).slice(0, 10);
+  const labels = sorted.map(s => trunc(s.name || s.rfc, 28));
+  const data = sorted.map(s => s.total);
+  const ctx = document.getElementById(canvasId).getContext('2d');
+  state.charts[key] = new Chart(ctx, {
+    type: 'bar',
+    data: { labels, datasets: [{ data, backgroundColor: direction === 'emitidas' ? COLORS.primary : COLORS.ink, borderRadius: 4 }] },
+    options: Object.assign({}, COMMON_CHART_OPTS, {
+      indexAxis: 'y',
+      plugins: Object.assign({}, COMMON_CHART_OPTS.plugins, { legend: { display: false } }),
+      scales: {
+        x: { grid: { color: '#EEEDE6' }, ticks: { color: COLORS.muted, font: { family: 'Inter Tight', size: 11 }, callback: v => '$' + fmtNum(v) } },
+        y: { grid: { display: false }, ticks: { color: COLORS.ink, font: { family: 'Inter Tight', size: 11 } } }
+      }
+    })
+  });
+}
+
+/* ---------- RENDER: FISCAL TABLE ---------- */
+function renderFiscalTable() {
+  const sums = state.cfdis.reduce((s, c) => {
+    const tc = c.tipoCambio || 1;
+    s.subtotal += (c.subtotal || 0) * tc;
+    s.descuento += (c.descuento || 0) * tc;
+    s.iva16 += c.tax.iva16 * tc;
+    s.iva8 += c.tax.iva8 * tc;
+    s.iva0 += (c.tax.iva0 + c.tax.ivaExento) * tc;
+    s.ivaRet += c.tax.ivaRet * tc;
+    s.isrRet += c.tax.isrRet * tc;
+    s.total += (c.total || 0) * tc;
+    return s;
+  }, { subtotal: 0, descuento: 0, iva16: 0, iva8: 0, iva0: 0, ivaRet: 0, isrRet: 0, total: 0 });
+
+  const rows = [
+    ['Subtotal', fmtMoney(sums.subtotal)],
+    ['Descuentos', '−' + fmtMoney(sums.descuento)],
+    ['IVA 16% trasladado', fmtMoney(sums.iva16)],
+    ['IVA 8% trasladado', fmtMoney(sums.iva8)],
+    ['IVA 0% / exento (base)', fmtMoney(sums.iva0)],
+    ['IVA retenido', '−' + fmtMoney(sums.ivaRet)],
+    ['ISR retenido', '−' + fmtMoney(sums.isrRet)]
+  ];
+  let html = '';
+  rows.forEach(r => { html += '<tr><td>' + r[0] + '</td><td>' + r[1] + '</td></tr>'; });
+  html += '<tr class="total"><td>TOTAL NETO</td><td>' + fmtMoney(sums.total) + '</td></tr>';
+  $('#fiscalTable').innerHTML = html;
+}
+
+/* ---------- RENDER: TABLE ---------- */
+function renderTable() {
+  const rows = getSorted(getFiltered());
+  const tbody = $('#cfdiTbody');
+  tbody.innerHTML = '';
+  const start = (state.page - 1) * state.pageSize;
+  const pageRows = rows.slice(start, start + state.pageSize);
+  pageRows.forEach((c, idx) => {
+    const tr = document.createElement('tr');
+    tr.dataset.idx = state.cfdis.indexOf(c);
+    const ivaT = c.tax.iva16 + c.tax.iva8;
+    tr.innerHTML =
+      '<td data-label="Fecha">' + escapeHtml(fmtDate(c.fecha)) + '</td>' +
+      '<td data-label="Tipo"><span class="badge tipo-' + c.tipo + '">' + c.tipo + '</span></td>' +
+      '<td data-label="Folio" class="mono">' + escapeHtml((c.serie || '') + (c.folio ? '-' + c.folio : '')) + '</td>' +
+      '<td data-label="Emisor"><div>' + escapeHtml(trunc(c.emisorNombre, 30)) + '</div><div class="mono" style="color:#5B6472;font-size:11px;">' + escapeHtml(c.emisorRfc) + '</div></td>' +
+      '<td data-label="Receptor"><div>' + escapeHtml(trunc(c.receptorNombre, 30)) + '</div><div class="mono" style="color:#5B6472;font-size:11px;">' + escapeHtml(c.receptorRfc) + '</div></td>' +
+      '<td data-label="Subtotal" class="num">' + fmtNum(c.subtotal, 2) + '</td>' +
+      '<td data-label="IVA" class="num">' + fmtNum(ivaT, 2) + '</td>' +
+      '<td data-label="Total" class="num"><strong>' + fmtNum(c.total, 2) + '</strong></td>' +
+      '<td data-label="Moneda" class="mono">' + escapeHtml(c.moneda) + '</td>' +
+      '<td data-label="UUID" class="mono" style="font-size:11px;">' + escapeHtml(trunc(c.uuid, 8)) + '</td>' +
+      '<td data-label="Acciones"><span class="row-actions">' +
+        '<button title="Ver detalle" data-act="view">👁</button>' +
+        '<button title="Descargar PDF" data-act="pdf">⬇</button>' +
+      '</span></td>';
+    tr.addEventListener('click', e => {
+      if (e.target.tagName === 'BUTTON') {
+        const act = e.target.dataset.act;
+        e.stopPropagation();
+        if (act === 'view') openSlideover(c);
+        else if (act === 'pdf') exportSinglePdf(c);
+      } else {
+        openSlideover(c);
+      }
+    });
+    tbody.appendChild(tr);
+  });
+
+  // Pagination
+  const totalPages = Math.max(1, Math.ceil(rows.length / state.pageSize));
+  if (state.page > totalPages) state.page = totalPages;
+  const pg = $('#pagination');
+  pg.innerHTML =
+    '<span>' + rows.length + ' CFDIs · página ' + state.page + ' de ' + totalPages + '</span>' +
+    '<span>' +
+      '<button id="pgPrev" ' + (state.page <= 1 ? 'disabled' : '') + '>← Anterior</button> ' +
+      '<button id="pgNext" ' + (state.page >= totalPages ? 'disabled' : '') + '>Siguiente →</button>' +
+    '</span>';
+  const pgPrev = $('#pgPrev'), pgNext = $('#pgNext');
+  if (pgPrev) pgPrev.addEventListener('click', () => { state.page--; renderTable(); });
+  if (pgNext) pgNext.addEventListener('click', () => { state.page++; renderTable(); });
+}
+
+function rerenderTable() { renderTable(); }
+function rerenderAll() {
+  renderKPIs();
+  renderCharts();
+  renderFiscalTable();
+  renderTable();
+}
+
+/* ---------- SLIDE-OVER ---------- */
+function openSlideover(c) {
+  const ivaT = c.tax.iva16 + c.tax.iva8 + c.tax.iva0;
+  const conceptosHtml = c.conceptos.map(co =>
+    '<tr><td>' + escapeHtml(trunc(co.descripcion, 60)) + '</td>' +
+    '<td class="num">' + fmtNum(co.cantidad, 2) + '</td>' +
+    '<td class="num">' + fmtNum(co.valorUnitario, 2) + '</td>' +
+    '<td class="num">' + fmtNum(co.importe, 2) + '</td></tr>'
+  ).join('');
+  const verifyUrl = c.uuid ?
+    'https://verificacfdi.facturaelectronica.sat.gob.mx/default.aspx?id=' + encodeURIComponent(c.uuid) +
+    '&re=' + encodeURIComponent(c.emisorRfc || '') +
+    '&rr=' + encodeURIComponent(c.receptorRfc || '') +
+    '&tt=' + encodeURIComponent(c.total || 0)
+    : '';
+  const pagosHtml = c.pago && c.pago.docs && c.pago.docs.length ?
+    '<div class="so-section"><h4>Documentos relacionados (Pago)</h4>' +
+    '<table class="so-table"><thead><tr><th>UUID</th><th>Folio</th><th class="num">Pagado</th><th class="num">Saldo Insol.</th></tr></thead><tbody>' +
+    c.pago.docs.map(d => '<tr><td class="mono" style="font-size:11px;">' + escapeHtml(trunc(d.uuid, 18)) + '</td><td class="mono">' + escapeHtml(d.folio||'') + '</td><td class="num">' + fmtMoney(d.impPagado, d.monedaDR||c.moneda) + '</td><td class="num">' + fmtMoney(d.impSaldoInsoluto, d.monedaDR||c.moneda) + '</td></tr>').join('') +
+    '</tbody></table></div>' : '';
+  const nominaHtml = c.nomina ?
+    '<div class="so-section"><h4>Datos de Nómina</h4>' +
+    '<div class="so-grid">' +
+      '<div class="k">Tipo</div><div class="v">' + escapeHtml(c.nomina.tipoNomina) + '</div>' +
+      '<div class="k">Total Percepciones</div><div class="v">' + fmtMoney(c.nomina.totalPercepciones, c.moneda) + '</div>' +
+      '<div class="k">Total Deducciones</div><div class="v">' + fmtMoney(c.nomina.totalDeducciones, c.moneda) + '</div>' +
+      '<div class="k">Total Otros Pagos</div><div class="v">' + fmtMoney(c.nomina.totalOtrosPagos, c.moneda) + '</div>' +
+    '</div></div>' : '';
+
+  $('#slideoverBody').innerHTML =
+    '<div class="so-section"><h4>Generales</h4><div class="so-grid">' +
+      '<div class="k">Tipo</div><div class="v">' + escapeHtml(c.tipo) + '</div>' +
+      '<div class="k">Versión</div><div class="v">' + escapeHtml(c.version) + '</div>' +
+      '<div class="k">Serie-Folio</div><div class="v">' + escapeHtml((c.serie||'') + '-' + (c.folio||'')) + '</div>' +
+      '<div class="k">Fecha</div><div class="v">' + escapeHtml(fmtDateTime(c.fecha)) + '</div>' +
+      '<div class="k">Lugar</div><div class="v">' + escapeHtml(c.lugarExpedicion) + '</div>' +
+      '<div class="k">Forma pago</div><div class="v">' + escapeHtml(c.formaPago) + '</div>' +
+      '<div class="k">Método pago</div><div class="v">' + escapeHtml(c.metodoPago) + '</div>' +
+      '<div class="k">Moneda</div><div class="v">' + escapeHtml(c.moneda) + (c.tipoCambio !== 1 ? ' (TC ' + c.tipoCambio + ')' : '') + '</div>' +
+    '</div></div>' +
+    '<div class="so-section"><h4>Emisor</h4><div class="so-grid">' +
+      '<div class="k">RFC</div><div class="v">' + escapeHtml(c.emisorRfc) + '</div>' +
+      '<div class="k">Nombre</div><div class="v">' + escapeHtml(c.emisorNombre) + '</div>' +
+      '<div class="k">Régimen</div><div class="v">' + escapeHtml(c.emisorRegimen) + '</div>' +
+    '</div></div>' +
+    '<div class="so-section"><h4>Receptor</h4><div class="so-grid">' +
+      '<div class="k">RFC</div><div class="v">' + escapeHtml(c.receptorRfc) + '</div>' +
+      '<div class="k">Nombre</div><div class="v">' + escapeHtml(c.receptorNombre) + '</div>' +
+      '<div class="k">Uso CFDI</div><div class="v">' + escapeHtml(c.receptorUsoCFDI) + '</div>' +
+      '<div class="k">Domicilio Fiscal</div><div class="v">' + escapeHtml(c.receptorDomicilioFiscal) + '</div>' +
+      '<div class="k">Régimen</div><div class="v">' + escapeHtml(c.receptorRegimen) + '</div>' +
+    '</div></div>' +
+    '<div class="so-section"><h4>Conceptos (' + c.conceptos.length + ')</h4>' +
+      '<table class="so-table"><thead><tr><th>Descripción</th><th class="num">Cant.</th><th class="num">P.U.</th><th class="num">Importe</th></tr></thead><tbody>' + conceptosHtml + '</tbody></table>' +
+    '</div>' +
+    '<div class="so-section"><h4>Totales</h4><div class="so-grid">' +
+      '<div class="k">Subtotal</div><div class="v">' + fmtMoney(c.subtotal, c.moneda) + '</div>' +
+      '<div class="k">Descuento</div><div class="v">' + fmtMoney(c.descuento, c.moneda) + '</div>' +
+      '<div class="k">IVA trasladado</div><div class="v">' + fmtMoney(c.tax.iva16 + c.tax.iva8, c.moneda) + '</div>' +
+      '<div class="k">IVA retenido</div><div class="v">' + fmtMoney(c.tax.ivaRet, c.moneda) + '</div>' +
+      '<div class="k">ISR retenido</div><div class="v">' + fmtMoney(c.tax.isrRet, c.moneda) + '</div>' +
+      '<div class="k"><strong>Total</strong></div><div class="v"><strong>' + fmtMoney(c.total, c.moneda) + '</strong></div>' +
+    '</div></div>' +
+    pagosHtml + nominaHtml +
+    '<div class="so-section"><h4>Timbre Fiscal Digital</h4><div class="so-grid">' +
+      '<div class="k">UUID</div><div class="v">' + escapeHtml(c.uuid) + '</div>' +
+      '<div class="k">Fecha timbrado</div><div class="v">' + escapeHtml(fmtDateTime(c.fechaTimbrado)) + '</div>' +
+      '<div class="k">No. Cert. SAT</div><div class="v">' + escapeHtml(c.noCertificadoSAT) + '</div>' +
+      '<div class="k">PAC</div><div class="v">' + escapeHtml(c.rfcProvCertif) + '</div>' +
+      '<div class="k">Sello SAT</div><div class="v">' + escapeHtml(trunc(c.selloSAT, 16)) + '</div>' +
+    '</div></div>' +
+    (verifyUrl ? '<div class="so-section"><a href="' + verifyUrl + '" target="_blank" rel="noopener" class="export-btn primary" style="display:inline-block;text-decoration:none;color:#fff;">Verificar en SAT ↗</a></div>' : '');
+  $('#slideover').classList.add('show');
+  $('#slideoverBackdrop').classList.add('show');
+}
+$('#slideoverClose').addEventListener('click', closeSlideover);
+$('#slideoverBackdrop').addEventListener('click', closeSlideover);
+function closeSlideover() {
+  $('#slideover').classList.remove('show');
+  $('#slideoverBackdrop').classList.remove('show');
+}
+
+/* ---------- EXPORT: PDF ---------- */
+async function generateQR(text, size) {
+  size = size || 90;
+  return new Promise((resolve) => {
+    const div = document.createElement('div');
+    $('#qrHidden').appendChild(div);
+    try {
+      new QRCode(div, { text: text, width: size, height: size, correctLevel: QRCode.CorrectLevel.M });
+    } catch (e) { resolve(null); return; }
+    setTimeout(() => {
+      const canvas = div.querySelector('canvas');
+      let dataUrl = null;
+      if (canvas) dataUrl = canvas.toDataURL('image/png');
+      else {
+        const img = div.querySelector('img');
+        if (img) dataUrl = img.src;
+      }
+      div.remove();
+      resolve(dataUrl);
+    }, 50);
+  });
+}
+
+function pdfFooter(doc) {
+  const pageCount = doc.internal.getNumberOfPages();
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(8);
+    doc.setTextColor(0, 191, 255);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Generado con CFDIconv  ·  by @aiandyofi  ·  TikTok  ·  YouTube', pageWidth / 2, pageHeight - 8, { align: 'center' });
+    doc.setTextColor(91, 100, 114);
+    doc.text(i + ' / ' + pageCount, pageWidth - 12, pageHeight - 8, { align: 'right' });
+  }
+}
+
+async function buildSinglePdf(c, template) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  const W = doc.internal.pageSize.getWidth();
+  const verifyUrl = c.uuid ?
+    'https://verificacfdi.facturaelectronica.sat.gob.mx/default.aspx?id=' + c.uuid +
+    '&re=' + (c.emisorRfc || '') + '&rr=' + (c.receptorRfc || '') + '&tt=' + (c.total || 0)
+    : '';
+  const qrData = verifyUrl || ('UUID:' + (c.uuid || ''));
+  const qr = await generateQR(qrData, 110);
+
+  if (template === 'minimalista') {
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(14); doc.setTextColor(15, 20, 25);
+    doc.text('CFDI ' + (c.tipo || '') + (c.serie || c.folio ? ' · ' + (c.serie||'') + (c.folio?'-'+c.folio:'') : ''), 14, 18);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(91, 100, 114);
+    doc.text('Fecha: ' + fmtDate(c.fecha) + '   ·   ' + (c.lugarExpedicion || ''), 14, 24);
+    doc.setDrawColor(229, 227, 220); doc.line(14, 28, W - 14, 28);
+
+    doc.setFontSize(9); doc.setTextColor(15, 20, 25);
+    doc.text('Emisor:', 14, 36); doc.setFont('helvetica','bold'); doc.text(c.emisorNombre || '', 32, 36); doc.setFont('helvetica','normal');
+    doc.text(c.emisorRfc || '', 32, 41); doc.setFontSize(8); doc.setTextColor(91,100,114); doc.text('Régimen ' + (c.emisorRegimen||''), 32, 45);
+
+    doc.setFontSize(9); doc.setTextColor(15, 20, 25);
+    doc.text('Receptor:', 14, 54); doc.setFont('helvetica','bold'); doc.text(c.receptorNombre || '', 32, 54); doc.setFont('helvetica','normal');
+    doc.text(c.receptorRfc || '', 32, 59); doc.setFontSize(8); doc.setTextColor(91,100,114); doc.text('Uso ' + (c.receptorUsoCFDI||''), 32, 63);
+
+    doc.autoTable({
+      startY: 70,
+      head: [['Cant.', 'Descripción', 'P.U.', 'Importe']],
+      body: c.conceptos.map(co => [
+        fmtNum(co.cantidad, 2),
+        (co.descripcion || '').slice(0, 80),
+        fmtNum(co.valorUnitario, 2),
+        fmtNum(co.importe, 2)
+      ]),
+      styles: { font: 'helvetica', fontSize: 8.5, textColor: [15,20,25] },
+      headStyles: { fillColor: [15,20,25], textColor: 255, fontSize: 8.5 },
+      columnStyles: { 0:{halign:'right',cellWidth:18}, 2:{halign:'right',cellWidth:24}, 3:{halign:'right',cellWidth:28} }
+    });
+
+    let y = doc.lastAutoTable.finalY + 8;
+    doc.setFontSize(9); doc.setTextColor(91,100,114);
+    const totals = [
+      ['Subtotal', fmtMoney(c.subtotal, c.moneda)],
+      ['IVA', fmtMoney(c.tax.iva16 + c.tax.iva8, c.moneda)],
+      ['Total', fmtMoney(c.total, c.moneda)]
+    ];
+    totals.forEach(([k, v], i) => {
+      const isTotal = i === totals.length - 1;
+      if (isTotal) { doc.setTextColor(232, 93, 47); doc.setFont('helvetica','bold'); doc.setFontSize(11); }
+      doc.text(k, W - 70, y);
+      doc.text(v, W - 14, y, { align: 'right' });
+      if (isTotal) { doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(91,100,114); }
+      y += isTotal ? 8 : 5;
+    });
+
+    if (qr) doc.addImage(qr, 'PNG', 14, y - 14, 28, 28);
+    doc.setFontSize(7); doc.setTextColor(91,100,114);
+    doc.text('UUID:', 46, y - 8);
+    doc.setFont('courier','normal'); doc.text(c.uuid || '', 46, y - 4);
+    doc.setFont('helvetica','normal');
+  }
+
+  else if (template === 'ejecutiva') {
+    // Header bar
+    doc.setFillColor(15, 20, 25); doc.rect(0, 0, W, 18, 'F');
+    doc.setTextColor(255); doc.setFont('helvetica', 'bold'); doc.setFontSize(13);
+    doc.text('CFDI ' + (c.tipo || ''), 14, 11);
+    doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(154, 164, 177);
+    doc.text((c.serie || '') + (c.folio ? '-' + c.folio : '') + '   ·   ' + fmtDate(c.fecha), 14, 16);
+    doc.setTextColor(0, 191, 255); doc.setFont('helvetica','bold'); doc.setFontSize(10);
+    doc.text('CFDIconv', W - 14, 12, { align: 'right' });
+
+    // Two columns
+    let y = 26;
+    doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(91,100,114);
+    doc.text('EMISOR', 14, y); doc.text('RECEPTOR', W/2 + 4, y);
+    y += 5;
+    doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(15,20,25);
+    doc.text(doc.splitTextToSize(c.emisorNombre || '', 90), 14, y);
+    doc.text(doc.splitTextToSize(c.receptorNombre || '', 90), W/2 + 4, y);
+    y += 8;
+    doc.setFont('courier','normal'); doc.setFontSize(9);
+    doc.text(c.emisorRfc || '', 14, y); doc.text(c.receptorRfc || '', W/2 + 4, y);
+    y += 5;
+    doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(91,100,114);
+    doc.text('Régimen: ' + (c.emisorRegimen || ''), 14, y);
+    doc.text('Uso CFDI: ' + (c.receptorUsoCFDI || ''), W/2 + 4, y);
+    y += 8;
+
+    doc.autoTable({
+      startY: y,
+      head: [['Clave', 'Descripción', 'Cant.', 'Unid.', 'P.U.', 'Importe']],
+      body: c.conceptos.map(co => [
+        co.claveProdServ || '',
+        (co.descripcion || '').slice(0, 70),
+        fmtNum(co.cantidad, 2),
+        co.claveUnidad || '',
+        fmtNum(co.valorUnitario, 2),
+        fmtNum(co.importe, 2)
+      ]),
+      styles: { font: 'helvetica', fontSize: 8, textColor: [15,20,25], lineColor: [229,227,220] },
+      headStyles: { fillColor: [0, 191, 255], textColor: 255, fontStyle: 'bold' },
+      alternateRowStyles: { fillColor: [250, 250, 247] },
+      columnStyles: { 0:{cellWidth:20}, 2:{halign:'right',cellWidth:14}, 3:{cellWidth:14}, 4:{halign:'right',cellWidth:22}, 5:{halign:'right',cellWidth:24} }
+    });
+
+    y = doc.lastAutoTable.finalY + 8;
+    if (qr) doc.addImage(qr, 'PNG', 14, y, 32, 32);
+    doc.setFontSize(7); doc.setTextColor(91,100,114);
+    doc.text('Verifica con el QR', 14, y + 36);
+
+    doc.setFontSize(9); doc.setTextColor(15,20,25);
+    const totals = [
+      ['Subtotal', fmtMoney(c.subtotal, c.moneda)],
+      ['Descuento', '-' + fmtMoney(c.descuento, c.moneda)],
+      ['IVA trasladado', fmtMoney(c.tax.iva16 + c.tax.iva8, c.moneda)],
+      ['IVA retenido', '-' + fmtMoney(c.tax.ivaRet, c.moneda)],
+      ['ISR retenido', '-' + fmtMoney(c.tax.isrRet, c.moneda)]
+    ];
+    let ty = y;
+    totals.forEach(([k, v]) => {
+      doc.setFont('helvetica','normal'); doc.setTextColor(91,100,114);
+      doc.text(k, W - 78, ty);
+      doc.setTextColor(15,20,25);
+      doc.text(v, W - 14, ty, { align: 'right' });
+      ty += 5;
+    });
+    ty += 2;
+    doc.setFillColor(232, 93, 47); doc.rect(W - 80, ty - 4, 66, 8, 'F');
+    doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(255);
+    doc.text('TOTAL', W - 78, ty + 1.5);
+    doc.text(fmtMoney(c.total, c.moneda), W - 16, ty + 1.5, { align: 'right' });
+
+    doc.setTextColor(91,100,114); doc.setFont('helvetica','normal'); doc.setFontSize(7);
+    doc.text('UUID', 50, y + 6);
+    doc.setFont('courier','normal'); doc.setTextColor(15,20,25); doc.setFontSize(8);
+    doc.text(c.uuid || '', 50, y + 11);
+    doc.setFont('helvetica','normal'); doc.setTextColor(91,100,114); doc.setFontSize(7);
+    doc.text('Fecha timbrado: ' + fmtDateTime(c.fechaTimbrado), 50, y + 17);
+    doc.text('PAC: ' + (c.rfcProvCertif || ''), 50, y + 22);
+    doc.text('No. Cert. SAT: ' + (c.noCertificadoSAT || ''), 50, y + 27);
+  }
+
+  else if (template === 'fiscal') {
+    // Header
+    doc.setFillColor(15, 20, 25); doc.rect(0, 0, W, 22, 'F');
+    doc.setTextColor(255); doc.setFont('helvetica','bold'); doc.setFontSize(14);
+    doc.text('CFDI ' + (c.tipo || '') + ' · Fiscal Detallada', 14, 13);
+    doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(154,164,177);
+    doc.text((c.serie || '') + (c.folio ? '-' + c.folio : '') + '   ·   ' + fmtDateTime(c.fecha) + '   ·   v' + (c.version||''), 14, 19);
+    doc.setTextColor(0, 191, 255); doc.setFont('helvetica','bold'); doc.setFontSize(10);
+    doc.text('CFDIconv', W - 14, 14, { align: 'right' });
+
+    let y = 30;
+    doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(91,100,114);
+    doc.text('EMISOR', 14, y); doc.text('RECEPTOR', W/2 + 4, y); y += 5;
+    doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(15,20,25);
+    doc.text(doc.splitTextToSize(c.emisorNombre||'',90), 14, y);
+    doc.text(doc.splitTextToSize(c.receptorNombre||'',90), W/2+4, y); y += 8;
+    doc.setFont('courier','normal'); doc.setFontSize(9);
+    doc.text(c.emisorRfc||'', 14, y); doc.text(c.receptorRfc||'', W/2+4, y); y+=5;
+    doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(91,100,114);
+    doc.text('Régimen: ' + (c.emisorRegimen||''), 14, y);
+    doc.text('Uso: ' + (c.receptorUsoCFDI||'') + '  ·  Régimen: ' + (c.receptorRegimen||''), W/2+4, y); y+=4;
+    doc.text('Lugar: ' + (c.lugarExpedicion||''), 14, y);
+    doc.text('Domicilio fiscal: ' + (c.receptorDomicilioFiscal||''), W/2+4, y); y+=4;
+    doc.text('Forma pago: ' + (c.formaPago||'') + '  ·  Método: ' + (c.metodoPago||''), 14, y);
+    doc.text('Moneda: ' + (c.moneda||'') + (c.tipoCambio !== 1 ? ' (TC ' + c.tipoCambio + ')' : ''), W/2+4, y); y+=8;
+
+    doc.autoTable({
+      startY: y,
+      head: [['Clave', 'Descripción', 'Cant.', 'P.U.', 'Imp.', 'IVA', 'Ret.']],
+      body: c.conceptos.map(co => {
+        const ivaC = co.traslados.filter(t => t.impuesto==='002').reduce((s,t)=>s+t.importe,0);
+        const retC = co.retenciones.reduce((s,t)=>s+t.importe,0);
+        return [
+          co.claveProdServ||'',
+          (co.descripcion||'').slice(0, 60),
+          fmtNum(co.cantidad, 2),
+          fmtNum(co.valorUnitario, 2),
+          fmtNum(co.importe, 2),
+          fmtNum(ivaC, 2),
+          retC ? fmtNum(retC, 2) : '—'
+        ];
+      }),
+      styles: { font: 'helvetica', fontSize: 7.5, textColor: [15,20,25], lineColor: [229,227,220] },
+      headStyles: { fillColor: [15,20,25], textColor: 255 },
+      alternateRowStyles: { fillColor: [250,250,247] },
+      columnStyles: { 0:{cellWidth:18}, 2:{halign:'right',cellWidth:12}, 3:{halign:'right',cellWidth:18}, 4:{halign:'right',cellWidth:18}, 5:{halign:'right',cellWidth:14}, 6:{halign:'right',cellWidth:14} }
+    });
+    y = doc.lastAutoTable.finalY + 6;
+
+    // Tax breakdown table
+    doc.autoTable({
+      startY: y,
+      head: [['Impuesto', 'Tasa', 'Base', 'Importe']],
+      body: [
+        ['IVA 16% trasladado', '16%', '', fmtMoney(c.tax.iva16, c.moneda)],
+        ['IVA 8% trasladado', '8%', '', fmtMoney(c.tax.iva8, c.moneda)],
+        ['IVA 0% / exento', '0% / Ex.', '', fmtMoney(c.tax.iva0, c.moneda)],
+        ['IVA retenido', '', '', '-' + fmtMoney(c.tax.ivaRet, c.moneda)],
+        ['ISR retenido', '', '', '-' + fmtMoney(c.tax.isrRet, c.moneda)]
+      ],
+      styles: { font: 'helvetica', fontSize: 8, textColor: [15,20,25] },
+      headStyles: { fillColor: [0,191,255], textColor: 255 },
+      columnStyles: { 1:{halign:'center',cellWidth:24}, 3:{halign:'right'} },
+      margin: { left: W/2 + 4 }
+    });
+
+    let ty = y;
+    doc.setFontSize(8); doc.setTextColor(91,100,114); doc.setFont('helvetica','normal');
+    doc.text('Subtotal:', 14, ty); doc.setTextColor(15,20,25); doc.text(fmtMoney(c.subtotal, c.moneda), W/2 - 4, ty, {align:'right'}); ty+=5;
+    doc.setTextColor(91,100,114); doc.text('Descuento:', 14, ty); doc.setTextColor(15,20,25); doc.text('-' + fmtMoney(c.descuento, c.moneda), W/2-4, ty, {align:'right'}); ty+=5;
+    doc.setTextColor(91,100,114); doc.text('IVA trasladado:', 14, ty); doc.setTextColor(15,20,25); doc.text(fmtMoney(c.tax.iva16+c.tax.iva8, c.moneda), W/2-4, ty, {align:'right'}); ty+=5;
+    doc.setTextColor(91,100,114); doc.text('Retenciones:', 14, ty); doc.setTextColor(15,20,25); doc.text('-' + fmtMoney(c.tax.ivaRet+c.tax.isrRet, c.moneda), W/2-4, ty, {align:'right'}); ty+=8;
+    doc.setFillColor(232,93,47); doc.rect(14, ty-4, W/2 - 18, 8, 'F');
+    doc.setTextColor(255); doc.setFont('helvetica','bold'); doc.setFontSize(11);
+    doc.text('TOTAL', 16, ty+1.5);
+    doc.text(fmtMoney(c.total, c.moneda), W/2 - 6, ty+1.5, {align:'right'});
+
+    y = Math.max(doc.lastAutoTable.finalY, ty) + 10;
+    if (y > 240) { doc.addPage(); y = 20; }
+    if (qr) doc.addImage(qr, 'PNG', 14, y, 30, 30);
+    doc.setFontSize(8); doc.setTextColor(91,100,114); doc.setFont('helvetica','bold');
+    doc.text('TIMBRE FISCAL DIGITAL', 50, y + 4);
+    doc.setFont('helvetica','normal'); doc.setTextColor(15,20,25);
+    doc.text('UUID: ', 50, y + 10); doc.setFont('courier','normal'); doc.text(c.uuid||'', 60, y + 10);
+    doc.setFont('helvetica','normal'); doc.text('Fecha timbrado: ' + fmtDateTime(c.fechaTimbrado), 50, y + 15);
+    doc.text('PAC: ' + (c.rfcProvCertif||'') + '  ·  No. Cert. SAT: ' + (c.noCertificadoSAT||''), 50, y + 20);
+    doc.setFontSize(7); doc.setTextColor(91,100,114);
+    doc.text('Sello SAT: ' + trunc(c.selloSAT||'', 60), 50, y + 25);
+
+    if (c.pago && c.pago.docs && c.pago.docs.length) {
+      y += 38;
+      doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(15,20,25);
+      doc.text('Documentos relacionados (Pago)', 14, y);
+      doc.autoTable({
+        startY: y + 2,
+        head: [['UUID', 'Folio', 'Pagado', 'Saldo Insol.', 'Parc.']],
+        body: c.pago.docs.map(d => [trunc(d.uuid, 24), d.folio||'', fmtMoney(d.impPagado, d.monedaDR||c.moneda), fmtMoney(d.impSaldoInsoluto, d.monedaDR||c.moneda), d.numParcialidad||'']),
+        styles: { font: 'helvetica', fontSize: 7.5 },
+        headStyles: { fillColor: [15,20,25], textColor: 255 }
+      });
+    }
+    if (c.nomina) {
+      y = (doc.lastAutoTable ? doc.lastAutoTable.finalY : y) + 8;
+      doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(15,20,25);
+      doc.text('Datos de Nómina', 14, y);
+      doc.autoTable({
+        startY: y + 2,
+        body: [
+          ['Tipo', c.nomina.tipoNomina || ''],
+          ['Total Percepciones', fmtMoney(c.nomina.totalPercepciones, c.moneda)],
+          ['Total Deducciones', fmtMoney(c.nomina.totalDeducciones, c.moneda)],
+          ['Total Otros Pagos', fmtMoney(c.nomina.totalOtrosPagos, c.moneda)]
+        ],
+        styles: { font: 'helvetica', fontSize: 8 },
+        columnStyles: { 1: { halign: 'right' } },
+        theme: 'plain'
+      });
+    }
+  }
+
+  pdfFooter(doc);
+  return doc;
+}
+
+async function exportSinglePdf(c) {
+  const doc = await buildSinglePdf(c, state.template);
+  const fname = 'CFDI_' + safeName((c.serie||'') + (c.folio||'')) + '_' + safeName((c.uuid||'').slice(0,8)) + '.pdf';
+  doc.save(fname);
+  triggerPostExportNudges('pdf');
+}
+
+async function exportPdfBatch() {
+  const rows = getFiltered();
+  if (rows.length === 0) { alert('No hay CFDIs para exportar.'); return; }
+  const btn = $('#btnPdfBatch');
+  btn.disabled = true;
+  const originalText = btn.textContent;
+  const zip = new JSZip();
+  for (let i = 0; i < rows.length; i++) {
+    btn.textContent = '⏳ Generando ' + (i+1) + '/' + rows.length + '…';
+    const c = rows[i];
+    const doc = await buildSinglePdf(c, state.template);
+    const fname = 'CFDI_' + safeName((c.serie||'') + (c.folio||'')) + '_' + safeName((c.uuid||'').slice(0,8)) + '.pdf';
+    const blob = doc.output('blob');
+    zip.file(fname, blob);
+    await new Promise(r => setTimeout(r, 0));
+  }
+  btn.textContent = '📦 Empaquetando ZIP…';
+  const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
+  downloadBlob(blob, 'CFDIs_' + new Date().toISOString().slice(0,10) + '.zip');
+  btn.disabled = false;
+  btn.textContent = originalText;
+  triggerPostExportNudges('pdfBatch');
+}
+$('#btnPdfBatch').addEventListener('click', exportPdfBatch);
+
+/* ---------- EXPORT: EXCEL ---------- */
+function exportExcel() {
+  const rows = getFiltered();
+  if (rows.length === 0) { alert('No hay CFDIs para exportar.'); return; }
+  const wb = XLSX.utils.book_new();
+
+  const cfdiRows = rows.map(c => ({
+    Fecha: c.fecha,
+    Tipo: c.tipo,
+    Serie: c.serie, Folio: c.folio,
+    UUID: c.uuid,
+    Version: c.version,
+    'Emisor RFC': c.emisorRfc, 'Emisor Nombre': c.emisorNombre, 'Emisor Regimen': c.emisorRegimen,
+    'Receptor RFC': c.receptorRfc, 'Receptor Nombre': c.receptorNombre, 'Uso CFDI': c.receptorUsoCFDI, 'Receptor Regimen': c.receptorRegimen, 'Domicilio Fiscal Receptor': c.receptorDomicilioFiscal,
+    Moneda: c.moneda, 'Tipo Cambio': c.tipoCambio,
+    Subtotal: c.subtotal, Descuento: c.descuento,
+    'IVA 16%': c.tax.iva16, 'IVA 8%': c.tax.iva8, 'IVA 0% Base': c.tax.iva0,
+    'IVA Retenido': c.tax.ivaRet, 'ISR Retenido': c.tax.isrRet,
+    'Total Impuestos Trasladados': c.totImpTras, 'Total Impuestos Retenidos': c.totImpRet,
+    Total: c.total,
+    'Forma de Pago': c.formaPago, 'Método de Pago': c.metodoPago,
+    'Lugar Expedición': c.lugarExpedicion,
+    'Fecha Timbrado': c.fechaTimbrado, 'PAC': c.rfcProvCertif, 'No. Cert. SAT': c.noCertificadoSAT
+  }));
+  const ws1 = XLSX.utils.json_to_sheet(cfdiRows);
+  ws1['!cols'] = autoCols(cfdiRows);
+  XLSX.utils.book_append_sheet(wb, ws1, 'CFDIs');
+
+  const conceptosRows = [];
+  rows.forEach(c => {
+    c.conceptos.forEach(co => {
+      conceptosRows.push({
+        UUID: c.uuid, Fecha: c.fecha, 'Emisor RFC': c.emisorRfc, 'Receptor RFC': c.receptorRfc,
+        ClaveProdServ: co.claveProdServ, NoIdentificacion: co.noIdentificacion,
+        Cantidad: co.cantidad, Unidad: co.unidad, ClaveUnidad: co.claveUnidad,
+        Descripcion: co.descripcion,
+        ValorUnitario: co.valorUnitario, Importe: co.importe, Descuento: co.descuento
+      });
+    });
+  });
+  const ws2 = XLSX.utils.json_to_sheet(conceptosRows);
+  ws2['!cols'] = autoCols(conceptosRows);
+  XLSX.utils.book_append_sheet(wb, ws2, 'Conceptos');
+
+  const sums = rows.reduce((s, c) => {
+    const tc = c.tipoCambio || 1;
+    s.subtotal += c.subtotal * tc;
+    s.descuento += c.descuento * tc;
+    s.iva16 += c.tax.iva16 * tc; s.iva8 += c.tax.iva8 * tc; s.iva0 += c.tax.iva0 * tc;
+    s.ivaRet += c.tax.ivaRet * tc; s.isrRet += c.tax.isrRet * tc;
+    s.total += c.total * tc;
+    return s;
+  }, { subtotal:0, descuento:0, iva16:0, iva8:0, iva0:0, ivaRet:0, isrRet:0, total:0 });
+
+  const fiscal = [
+    { Concepto: 'Subtotal', Importe: sums.subtotal },
+    { Concepto: 'Descuentos', Importe: sums.descuento },
+    { Concepto: 'IVA 16% trasladado', Importe: sums.iva16 },
+    { Concepto: 'IVA 8% trasladado', Importe: sums.iva8 },
+    { Concepto: 'IVA 0% / exento (base)', Importe: sums.iva0 },
+    { Concepto: 'IVA retenido', Importe: sums.ivaRet },
+    { Concepto: 'ISR retenido', Importe: sums.isrRet },
+    { Concepto: 'TOTAL NETO', Importe: sums.total }
+  ];
+  const ws3 = XLSX.utils.json_to_sheet(fiscal);
+  ws3['!cols'] = [{ wch: 32 }, { wch: 18 }];
+  XLSX.utils.book_append_sheet(wb, ws3, 'Resumen Fiscal');
+
+  XLSX.writeFile(wb, 'CFDIconv_' + new Date().toISOString().slice(0,10) + '.xlsx');
+  triggerPostExportNudges('excel');
+}
+$('#btnExcel').addEventListener('click', exportExcel);
+
+function autoCols(rows) {
+  if (!rows.length) return [];
+  const keys = Object.keys(rows[0]);
+  return keys.map(k => {
+    let max = k.length;
+    rows.forEach(r => { const v = String(r[k] === undefined || r[k] === null ? '' : r[k]); if (v.length > max) max = v.length; });
+    return { wch: Math.min(50, Math.max(8, max + 2)) };
+  });
+}
+
+/* ---------- EXPORT: CSV ---------- */
+function exportCsv() {
+  const rows = getFiltered();
+  if (rows.length === 0) { alert('No hay CFDIs para exportar.'); return; }
+  const headers = ['Fecha','Tipo','Serie','Folio','UUID','EmisorRFC','EmisorNombre','ReceptorRFC','ReceptorNombre','Moneda','TipoCambio','Subtotal','Descuento','IVA16','IVA8','IVA0_Base','IVA_Ret','ISR_Ret','Total','FormaPago','MetodoPago','UsoCFDI'];
+  const lines = [headers.join(',')];
+  rows.forEach(c => {
+    const row = [c.fecha, c.tipo, c.serie, c.folio, c.uuid, c.emisorRfc, c.emisorNombre, c.receptorRfc, c.receptorNombre, c.moneda, c.tipoCambio, c.subtotal, c.descuento, c.tax.iva16, c.tax.iva8, c.tax.iva0, c.tax.ivaRet, c.tax.isrRet, c.total, c.formaPago, c.metodoPago, c.receptorUsoCFDI];
+    lines.push(row.map(csvEscape).join(','));
+  });
+  const blob = new Blob(['\ufeff' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+  downloadBlob(blob, 'CFDIconv_' + new Date().toISOString().slice(0,10) + '.csv');
+  triggerPostExportNudges('csv');
+}
+function csvEscape(v) {
+  if (v === undefined || v === null) return '';
+  const s = String(v);
+  if (/[",\n]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+  return s;
+}
+$('#btnCsv').addEventListener('click', exportCsv);
+
+/* ---------- EXPORT: SUMMARY PDF ---------- */
+async function exportSummaryPdf() {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  const W = doc.internal.pageSize.getWidth();
+  const k = computeKPIs();
+
+  // Header
+  doc.setFillColor(15, 20, 25); doc.rect(0, 0, W, 26, 'F');
+  doc.setTextColor(255); doc.setFont('helvetica','bold'); doc.setFontSize(18);
+  doc.text('Resumen fiscal del periodo', 14, 13);
+  doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(154,164,177);
+  doc.text('Generado el ' + fmtDate(new Date().toISOString()) + '   ·   RFC: ' + (state.userRfc || '—'), 14, 20);
+  doc.setTextColor(0,191,255); doc.setFont('helvetica','bold'); doc.setFontSize(11);
+  doc.text('CFDIconv', W - 14, 14, { align: 'right' });
+
+  let y = 36;
+  // KPIs grid (3x2)
+  const kpis = [
+    { l: 'Total CFDIs', v: fmtNum(k.total) },
+    { l: 'Emitidas', v: fmtMoney(k.emitSum), s: k.emitCount + ' docs' },
+    { l: 'Recibidas', v: fmtMoney(k.recvSum), s: k.recvCount + ' docs' },
+    { l: 'IVA trasladado', v: fmtMoney(k.ivaTrasladado) },
+    { l: 'IVA acreditable', v: fmtMoney(k.ivaAcreditable) },
+    { l: 'ISR retenido', v: fmtMoney(k.isrRetenido) }
+  ];
+  const cardW = (W - 28 - 2*4) / 3;
+  kpis.forEach((kp, i) => {
+    const col = i % 3, row = Math.floor(i / 3);
+    const x = 14 + col * (cardW + 4);
+    const yy = y + row * 28;
+    doc.setDrawColor(229,227,220); doc.setFillColor(255);
+    doc.roundedRect(x, yy, cardW, 24, 2, 2, 'FD');
+    doc.setFontSize(7.5); doc.setTextColor(91,100,114); doc.setFont('helvetica','bold');
+    doc.text(kp.l.toUpperCase(), x + 4, yy + 6);
+    doc.setFontSize(13); doc.setTextColor(15,20,25);
+    doc.text(kp.v, x + 4, yy + 14);
+    if (kp.s) { doc.setFontSize(7); doc.setTextColor(91,100,114); doc.setFont('helvetica','normal'); doc.text(kp.s, x + 4, yy + 19); }
+  });
+  y += 60;
+
+  // Charts as images
+  const chartW = (W - 28 - 4) / 2;
+  const chartH = 56;
+  const charts = ['monthly', 'tipo', 'topClients', 'topVendors'];
+  for (let i = 0; i < charts.length; i++) {
+    if (!state.charts[charts[i]]) continue;
+    const img = state.charts[charts[i]].toBase64Image();
+    const col = i % 2, row = Math.floor(i / 2);
+    const x = 14 + col * (chartW + 4);
+    const yy = y + row * (chartH + 4);
+    if (yy + chartH > 270) { doc.addPage(); y = 20; }
+    doc.addImage(img, 'PNG', x, yy, chartW, chartH);
+  }
+  y += 130;
+  if (y > 230) { doc.addPage(); y = 20; }
+
+  // Fiscal table
+  const sums = state.cfdis.reduce((s, c) => {
+    const tc = c.tipoCambio || 1;
+    s.subtotal += c.subtotal * tc; s.descuento += c.descuento * tc;
+    s.iva16 += c.tax.iva16 * tc; s.iva8 += c.tax.iva8 * tc; s.iva0 += (c.tax.iva0 + c.tax.ivaExento) * tc;
+    s.ivaRet += c.tax.ivaRet * tc; s.isrRet += c.tax.isrRet * tc;
+    s.total += c.total * tc;
+    return s;
+  }, {subtotal:0,descuento:0,iva16:0,iva8:0,iva0:0,ivaRet:0,isrRet:0,total:0});
+
+  doc.autoTable({
+    startY: y,
+    head: [['Concepto', 'Importe (MXN)']],
+    body: [
+      ['Subtotal', fmtMoney(sums.subtotal)],
+      ['Descuentos', '-' + fmtMoney(sums.descuento)],
+      ['IVA 16% trasladado', fmtMoney(sums.iva16)],
+      ['IVA 8% trasladado', fmtMoney(sums.iva8)],
+      ['IVA 0% / exento (base)', fmtMoney(sums.iva0)],
+      ['IVA retenido', '-' + fmtMoney(sums.ivaRet)],
+      ['ISR retenido', '-' + fmtMoney(sums.isrRet)],
+      ['TOTAL NETO', fmtMoney(sums.total)]
+    ],
+    styles: { font: 'helvetica', fontSize: 9 },
+    headStyles: { fillColor: [15,20,25], textColor: 255 },
+    columnStyles: { 1: { halign: 'right' } },
+    didParseCell: (data) => {
+      if (data.row.index === 7 && data.section === 'body') {
+        data.cell.styles.fillColor = [255, 248, 225];
+        data.cell.styles.fontStyle = 'bold';
+        data.cell.styles.textColor = [232, 93, 47];
+      }
+    }
+  });
+
+  y = doc.lastAutoTable.finalY + 6;
+  doc.setFontSize(8); doc.setTextColor(91,100,114); doc.setFont('helvetica','italic');
+  doc.text('Este es un cálculo informativo basado en los CFDIs cargados. No sustituye el cálculo oficial de tu contador.', 14, y);
+
+  pdfFooter(doc);
+  doc.save('CFDIconv_Resumen_' + new Date().toISOString().slice(0,10) + '.pdf');
+  triggerPostExportNudges('summary');
+}
+$('#btnSummaryPdf').addEventListener('click', exportSummaryPdf);
+
+/* ---------- POST-EXPORT NUDGES ---------- */
+function triggerPostExportNudges(kind) {
+  // Modal once per session
+  if (!sessionStorage.getItem('cfdiconv_modal_shown')) {
+    setTimeout(() => {
+      $('#exportModal').classList.add('show');
+      sessionStorage.setItem('cfdiconv_modal_shown', '1');
+    }, 350);
+  }
+  // Toast on batch exports — once per session
+  if ((kind === 'pdfBatch' || kind === 'excel' || kind === 'summary') && !sessionStorage.getItem('cfdiconv_toast_shown')) {
+    showToast('✓ Listo. PS: si te gustó, en mi TikTok subo trucos de IA cada semana. <a href="https://tiktok.com/@aiandyofi" target="_blank" rel="noopener">Ir →</a>');
+    sessionStorage.setItem('cfdiconv_toast_shown', '1');
+  }
+}
+function showToast(html) {
+  const t = $('#toast');
+  t.innerHTML = html;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 6000);
+}
+$('#modalDismiss').addEventListener('click', () => $('#exportModal').classList.remove('show'));
+$('#exportModal').addEventListener('click', e => { if (e.target.id === 'exportModal') $('#exportModal').classList.remove('show'); });
+$('#dupModal').addEventListener('click', e => { if (e.target.id === 'dupModal') $('#dupModal').classList.remove('show'); });
+
+/* ---------- KEYBOARD ---------- */
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    closeSlideover();
+    $('#exportModal').classList.remove('show');
+    $('#dupModal').classList.remove('show');
+  }
+});
+
+})();
+</script>
+</body>
+</html>
