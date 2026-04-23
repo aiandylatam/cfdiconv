@@ -130,6 +130,28 @@
   .dropzone-btn:hover { transform: translateY(-1px); }
   .dropzone-btn:active { transform: translateY(1px); border-bottom-width: 0; margin-top: 20px; }
   .file-input { display: none; }
+  .privacy-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    margin-top: 22px;
+    background: #E8F5EE; color: #0B5E37;
+    border: 1px solid #BCE3CC;
+    padding: 8px 14px; border-radius: 999px;
+    font-size: 13px; font-weight: 500;
+    line-height: 1.4;
+  }
+  .privacy-badge strong { font-weight: 700; }
+
+  .privacy-banner {
+    display: flex; align-items: center; gap: 10px;
+    background: #E8F5EE; color: #0B5E37;
+    border: 1px solid #BCE3CC;
+    border-left: 4px solid #0B8B4F;
+    padding: 10px 16px; border-radius: 8px;
+    font-size: 13.5px; font-weight: 500;
+    margin-bottom: 16px;
+  }
+  .privacy-banner .pb-icon { font-size: 16px; }
+  .privacy-banner strong { font-weight: 700; }
 
   /* ==================== PROGRESS ==================== */
   .progress-wrap { margin-top: 16px; }
@@ -568,6 +590,7 @@
       <div class="dropzone-sub">Aceptamos archivos .xml individuales o un .zip con muchos. CFDI 3.3 y 4.0.</div>
       <span class="dropzone-btn">Seleccionar archivos</span>
       <input id="fileInput" class="file-input" type="file" multiple accept=".xml,.zip,application/xml,application/zip,text/xml" />
+      <div class="privacy-badge">🔒 Tus XMLs <strong>no se suben a ningún servidor</strong>. Todo se procesa aquí mismo, en tu navegador.</div>
     </div>
     <div id="progressWrap" class="progress-wrap hidden">
       <div class="progress-bar"><div id="progressFill" class="progress-bar-fill" style="width:0"></div></div>
@@ -583,6 +606,11 @@
 
   <!-- ========== DASHBOARD ========== -->
   <section id="dashboard" class="hidden">
+
+    <div class="privacy-banner">
+      <span class="pb-icon">🔒</span>
+      <span><strong>Procesado 100% en tu navegador.</strong> Nada se envió a internet. Tus CFDIs nunca salieron de tu computadora.</span>
+    </div>
 
     <div class="rfc-bar">
       <label for="rfcInput">Tu RFC:</label>
